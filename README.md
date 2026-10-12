@@ -622,7 +622,7 @@ docker compose up -d --build        # add -f docker-compose.traefik.yml if you u
 
 ### Using the prebuilt image instead of building
 
-Every push to `main` builds a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/dussud/moodle-mcp:latest` (see [Publishing your fork on GitHub](#publishing-your-fork-on-github)). To use it, replace `build: .` with `image: ghcr.io/dussud/moodle-mcp:latest` in `docker-compose.yml`, then `docker compose pull && docker compose up -d`.
+Every push to `master` builds a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/dussud/moodle-mcp:latest` (see [Publishing your fork on GitHub](#publishing-your-fork-on-github)). To use it, replace `build: .` with `image: ghcr.io/dussud/moodle-mcp:latest` in `docker-compose.yml`, then `docker compose pull && docker compose up -d`.
 
 ### Troubleshooting
 
@@ -649,10 +649,10 @@ To make your own copy with these changes (or your own):
    ```bash
    git add -A
    git commit -m "Describe your change"
-   git push origin main
+   git push origin master
    ```
    Never commit `.env`: it holds your Moodle token. `.gitignore` already excludes it; only `.env.example` is tracked.
-3. **Docker image (GitHub Actions)**: [`.github/workflows/docker.yml`](.github/workflows/docker.yml) builds and pushes `ghcr.io/<you>/moodle-mcp` on every push to `main` and on `v*` tags. On a fork, enable it once under **Actions** → *I understand my workflows, go ahead and enable them*. New packages are private by default: either make it public (**Packages** → moodle-mcp → *Package settings* → *Change visibility*), or log in on the server with a PAT that has `read:packages`:
+3. **Docker image (GitHub Actions)**: [`.github/workflows/docker.yml`](.github/workflows/docker.yml) builds and pushes `ghcr.io/<you>/moodle-mcp` on every push to `master` and on `v*` tags. On a fork, enable it once under **Actions** → *I understand my workflows, go ahead and enable them*. New packages are private by default: either make it public (**Packages** → moodle-mcp → *Package settings* → *Change visibility*), or log in on the server with a PAT that has `read:packages`:
    ```bash
    echo "$GHCR_PAT" | docker login ghcr.io -u <your-github-user> --password-stdin
    ```
@@ -660,8 +660,8 @@ To make your own copy with these changes (or your own):
    ```bash
    git remote add upstream https://github.com/1alexandrer/moodle-mcp.git   # once
    git fetch upstream
-   git merge upstream/main
-   git push origin main
+   git merge upstream/master
+   git push origin master
    ```
    Or use **Sync fork** on the GitHub page. After merging, check whether new tools need functions added to `MOODLE_WS_EXTRA_ALLOWED`; any that write to Moodle should stay blocked.
 
