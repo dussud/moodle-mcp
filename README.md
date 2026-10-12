@@ -632,6 +632,7 @@ Every push to `master` builds a multi-arch image (`linux/amd64`, `linux/arm64`) 
 | `{"error":"Invalid Moodle token…"}` | Token wrong, expired, or you pasted `signature:::token`; see [Getting Your Token](#getting-your-token) |
 | `{"error":"fetch failed"}` | Container cannot reach `MOODLE_URL` (DNS, typo, school firewall) |
 | `Blocked by read-only guard: …` | A tool used a function that is not allowlisted; see [Read-only guard](#read-only-guard) |
+| Traefik returns `404 page not found` for a few seconds after start | Traefik waits until the container health check passes |
 | Browser shows a certificate error | DNS not pointing at the server yet, proxied through Cloudflare, or port 443 closed |
 
 ---
