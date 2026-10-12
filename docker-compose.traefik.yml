@@ -1,0 +1,20 @@
+# Override for hosts already running Traefik with a Let's Encrypt resolver.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+# Adjust TRAEFIK_NETWORK / TRAEFIK_CERTRESOLVER in .env to match your Traefik setup.
+services:
+  moodle-mcp:
+    ports: !reset []
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.moodle-mcp.rule=Host(`${MCP_HOST}`)
+      - traefik.http.routers.moodle-mcp.entrypoints=web,websecure
+      - traefik.http.routers.moodle-mcp.tls=true
+      - traefik.http.routers.moodle-mcp.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      - traefik.http.services.moodle-mcp.loadbalancer.server.port=3000
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-web}
+    external: true

@@ -16,8 +16,9 @@
 
 > 📦 **[moodle-mcp on npm](https://www.npmjs.com/package/moodle-mcp)** — `npx moodle-mcp`
 
-**14 tools · 5 prompts · MCP Resources**
+**14 tools · 5 prompts · MCP Resources · read-only**
 
+> 🍴 **This is a fork of [1alexandrer/moodle-mcp](https://github.com/1alexandrer/moodle-mcp)** that adds a [self-hosted Docker deployment](#self-hosting-with-docker) with an authenticated endpoint and a [read-only guard](#read-only-guard) that blocks uploads and any other write to Moodle.
 
 
 ---
@@ -43,6 +44,10 @@ npx wrangler secret put MOODLE_TOKEN
 npm run deploy
 ```
 Your URL will be `https://moodle-mcp.<your-subdomain>.workers.dev`.
+
+> ⚠️ The Cloudflare Worker endpoint has **no authentication**: anyone who learns the URL can read your Moodle with your token. Prefer Option C if you can.
+
+**Option C — Self-hosted (Docker, recommended for hosting):** Run it on any VPS / home server with Docker. The endpoint is protected by a secret key and the [read-only guard](#read-only-guard) is on by default. See [Self-hosting with Docker](#self-hosting-with-docker). Your URL will be `https://<your-host>/<MCP_AUTH_SECRET>/mcp`; use it anywhere the client examples below show a hosted URL.
 
 ### Step 3 — Configure your MCP client
 
@@ -305,36 +310,62 @@ OpenAI has announced MCP support for ChatGPT. Check the [OpenAI blog](https://op
 
 ## Getting Your Token
 
-### Option A — Moodle profile page (works everywhere)
+Every method below ends with a **32-character hex string** (e.g. `0123456789abcdef0123456789abcdef`). That string, and nothing else, goes in `MOODLE_TOKEN`.
+
+You can check a token before using it:
+```bash
+curl -s "https://moodle.yourschool.edu/webservice/rest/server.php?moodlewsrestformat=json&wsfunction=core_webservice_get_site_info" \
+  --data-urlencode "wstoken=YOUR_TOKEN" | head -c 200
+```
+A valid token returns your `sitename`; `"errorcode":"invalidtoken"` means the token is wrong, expired or revoked.
+
+### Option A — Security keys page (if your school shows it)
 
 1. Log in to your school's Moodle in a browser
-2. Go to **Profile → Security keys** (URL: `https://moodle.yourschool.edu/user/managetoken.php`)
-3. Find the **Moodle mobile web service** token and copy it
-4. Set `MOODLE_TOKEN=<token>` in your MCP config
+2. Open `https://moodle.yourschool.edu/user/managetoken.php` (**Profile → Preferences → Security keys**)
+3. Copy the token for **Moodle mobile web service**
 
-### Option B — Get the token from 
-`https://moodle.yourschool.edu/login/token.php?username=<YOURUSERNAME>&password=<YOURPASSWORD>&service=moodle_mobile_app`
-### Option C — Username + password (not SSO schools)
+Many schools hide this page or don't list the mobile service. If so, use Option B.
 
-If your school uses a regular username/password (not Microsoft/Google/SSO), you can skip the token step entirely:
+### Option B — Browser launch URL (works with SSO: Microsoft, Google, Shibboleth…)
 
-```json
-"env": {
-  "MOODLE_URL": "https://moodle.yourschool.edu",
-  "MOODLE_USERNAME": "your_username",
-  "MOODLE_PASSWORD": "your_password"
-}
+This uses the same login flow as the official Moodle app.
+
+1. In a desktop browser (Chrome/Edge/Firefox), log in to your Moodle normally.
+2. Open DevTools (**F12**) → **Console** tab, and keep it open.
+3. In the **same tab**, go to:
+   ```
+   https://moodle.yourschool.edu/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=12345&urlscheme=moodlemobile
+   ```
+   The page appears to do nothing: Moodle is trying to redirect to the app.
+4. The Console shows an error with a URL like `moodlemobile://token=BASE64STRING`. Copy everything after `token=`.
+   If nothing appears, look in the **Network** tab for the `launch.php` request and copy its `Location` response header.
+5. Decode it in the Console:
+   ```js
+   atob("BASE64STRING")
+   ```
+   The result looks like `signature:::TOKEN` or `signature:::TOKEN:::privatetoken`.
+   **Use only the middle 32-character `TOKEN` part.** Pasting the whole string gives `invalidtoken`.
+
+If the page says the mobile app is not enabled / not allowed, your school has blocked mobile access and none of these methods will work.
+
+### Option C — `login/token.php` (non-SSO schools only)
+
+```bash
+curl -s "https://moodle.yourschool.edu/login/token.php" \
+  --data-urlencode "username=YOUR_USERNAME" \
+  --data-urlencode "password=YOUR_PASSWORD" \
+  --data-urlencode "service=moodle_mobile_app"
 ```
+Returns `{"token":"...","privatetoken":"..."}`; use `token`. Use POST as shown rather than putting your password in a URL (it ends up in browser history and server logs).
 
-> ⚠️ **SSO schools**: If your school login page redirects to Microsoft, Google, or another identity provider, Option B won't work. Use Option A or C.
+For the local `npx` mode only, non-SSO users can also skip the token and set `MOODLE_USERNAME` + `MOODLE_PASSWORD` instead. The hosted modes (Cloudflare and Docker) require `MOODLE_TOKEN`.
 
-### Option D — Extract from Moodle mobile app (SSO schools)
+> ⚠️ **SSO schools**: if your login page redirects to Microsoft, Google or another identity provider, Option C will not work. Use Option B.
 
-1. Install the **Moodle app** on your phone and log in with SSO
-2. Go to **App settings → About**
-3. Tap the version number 5 times to enable developer mode
-4. Go to **Developer options → Copy token** and copy it
-5. Use that token as `MOODLE_TOKEN` in Option A
+### Token lifetime
+
+Tokens are invalidated when you reset them on the Security keys page, and often when you log out of the Moodle app or when the school's token expiry passes. If tools start returning `Invalid Moodle token`, get a new one and restart the server.
 
 ---
 
@@ -489,10 +520,155 @@ This fixes the "domain not in the list of allowed fetch" error seen with Claude.
 
 
 
+## Read-only guard
+
+The tools only *read* from Moodle: they call 11 `*_get_*` web-service functions and download files from `pluginfile.php`. Nothing uploads, submits, posts or messages.
+
+The Moodle token itself is far more powerful, though: a mobile-app token can upload files, submit assignments and post in forums. So the Docker deployment adds a guard ([`docker/guard.mjs`](docker/guard.mjs)) that wraps every outbound request the server makes and, by default, only lets through:
+
+| Allowed | Everything else |
+|---|---|
+| `webservice/rest/server.php` calls whose `wsfunction` is on the allowlist below | **Blocked** before leaving the container, e.g. `webservice/upload.php`, `login/token.php`, `mod_assign_save_submission`, `mod_forum_add_discussion_post`, any non-Moodle host |
+| `GET`/`HEAD` on `pluginfile.php` on your Moodle host | |
+
+Allowlist: `core_webservice_get_site_info`, `core_enrol_get_users_courses`, `core_course_get_contents`, `core_calendar_get_action_events_by_timesort`, `gradereport_user_get_grade_items`, `message_popup_get_popup_notifications`, `mod_assign_get_assignments`, `mod_assign_get_submission_status`, `mod_forum_get_forum_discussions`, `mod_quiz_get_quizzes_by_courses`, `mod_quiz_get_user_attempts`.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `MOODLE_ALLOW_WRITES` | `false` | `true` disables the guard entirely (not recommended) |
+| `MOODLE_WS_EXTRA_ALLOWED` | empty | Comma-separated extra **read-only** functions to allow, e.g. if an upstream update adds a tool that fails with `Blocked by read-only guard` |
+
+Blocked attempts are logged as `[guard] blocked: …` (`docker compose logs | grep guard`).
+
+The guard is part of the Docker deployment only; the `npx` and Cloudflare Worker modes run without it.
+
+---
+
+## Self-hosting with Docker
+
+Runs the same Streamable HTTP handler as the Cloudflare Worker, on Node, in a container. Works on any Linux box with Docker (x86_64 or ARM, e.g. an Oracle Cloud Ampere instance).
+
+What the container adds on top of the Worker:
+- **Endpoint authentication**: every request must carry the secret key, either in the path (`/<MCP_AUTH_SECRET>/mcp`) or as `Authorization: Bearer <MCP_AUTH_SECRET>`. Anything else gets a plain `404`. The path form is what Claude.ai custom connectors need, since they cannot send custom headers.
+- **The [read-only guard](#read-only-guard)**.
+- `GET /healthz` for monitoring (no auth, returns `ok`).
+
+### 1. Configure
+
+```bash
+git clone https://github.com/dussud/moodle-mcp.git
+cd moodle-mcp
+cp .env.example .env
+chmod 600 .env
+sed -i "s/^MCP_AUTH_SECRET=.*/MCP_AUTH_SECRET=$(openssl rand -hex 24)/" .env
+nano .env   # set MOODLE_URL and MOODLE_TOKEN
+```
+
+### 2a. Run behind your own reverse proxy
+
+```bash
+docker compose up -d --build
+curl http://127.0.0.1:3000/healthz   # -> ok
+```
+
+The container listens on `127.0.0.1:3000` only. Put a TLS reverse proxy in front of it, for example with Caddy (automatic HTTPS):
+
+```
+moodle-mcp.example.com {
+    reverse_proxy 127.0.0.1:3000
+}
+```
+
+nginx works too; disable buffering so streamed responses pass straight through (`proxy_buffering off;`).
+
+### 2b. Run behind an existing Traefik
+
+If the host already runs Traefik with a Let's Encrypt resolver, set `MCP_HOST`, `TRAEFIK_NETWORK` (the Docker network Traefik is on) and `TRAEFIK_CERTRESOLVER` in `.env`, then:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
+```
+
+### 3. DNS and firewall
+
+- Point an `A` record for your host at the server's public IP. Behind Cloudflare, use **DNS only** (grey cloud), at least until the certificate is issued: Let's Encrypt's TLS-ALPN challenge does not work through the Cloudflare proxy.
+- Open ports 80/443. On Oracle Cloud this means **both** the VCN security list / NSG ingress rules and the instance firewall (`iptables` / `netfilter-persistent`).
+
+### 4. Connect
+
+Your MCP URL is:
+```
+https://moodle-mcp.example.com/<MCP_AUTH_SECRET>/mcp
+```
+Print the secret with `grep MCP_AUTH_SECRET .env`. Treat the URL like a password: if it leaks, put a new `openssl rand -hex 24` value in `.env` and run `docker compose up -d`.
+
+- **Claude.ai / Claude Desktop**: Settings → Connectors → *Add custom connector* → paste the URL.
+- **Claude Code**: `claude mcp add moodle --transport http https://moodle-mcp.example.com/<MCP_AUTH_SECRET>/mcp`
+- **Clients that support headers** can use `https://moodle-mcp.example.com/mcp` with `Authorization: Bearer <MCP_AUTH_SECRET>`.
+
+Quick check from a shell:
+```bash
+curl -s -X POST "https://moodle-mcp.example.com/$SECRET/mcp" \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"moodle_list_courses","arguments":{}}}'
+```
+
+### Updating
+
+```bash
+git pull
+docker compose up -d --build        # add -f docker-compose.traefik.yml if you use it
+```
+
+### Using the prebuilt image instead of building
+
+Every push to `main` builds a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/dussud/moodle-mcp:latest` (see [Publishing your fork on GitHub](#publishing-your-fork-on-github)). To use it, replace `build: .` with `image: ghcr.io/dussud/moodle-mcp:latest` in `docker-compose.yml`, then `docker compose pull && docker compose up -d`.
+
+### Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| `404` on every request | Missing/wrong secret in the URL or `Authorization` header |
+| `{"error":"Invalid Moodle token…"}` | Token wrong, expired, or you pasted `signature:::token`; see [Getting Your Token](#getting-your-token) |
+| `{"error":"fetch failed"}` | Container cannot reach `MOODLE_URL` (DNS, typo, school firewall) |
+| `Blocked by read-only guard: …` | A tool used a function that is not allowlisted; see [Read-only guard](#read-only-guard) |
+| Browser shows a certificate error | DNS not pointing at the server yet, proxied through Cloudflare, or port 443 closed |
+
+---
+
+## Publishing your fork on GitHub
+
+To make your own copy with these changes (or your own):
+
+1. **Fork**: on GitHub click **Fork** on this repo, or with the GitHub CLI:
+   ```bash
+   gh repo fork dussud/moodle-mcp --clone
+   cd moodle-mcp
+   ```
+2. **Push changes**:
+   ```bash
+   git add -A
+   git commit -m "Describe your change"
+   git push origin main
+   ```
+   Never commit `.env`: it holds your Moodle token. `.gitignore` already excludes it; only `.env.example` is tracked.
+3. **Docker image (GitHub Actions)**: [`.github/workflows/docker.yml`](.github/workflows/docker.yml) builds and pushes `ghcr.io/<you>/moodle-mcp` on every push to `main` and on `v*` tags. On a fork, enable it once under **Actions** → *I understand my workflows, go ahead and enable them*. New packages are private by default: either make it public (**Packages** → moodle-mcp → *Package settings* → *Change visibility*), or log in on the server with a PAT that has `read:packages`:
+   ```bash
+   echo "$GHCR_PAT" | docker login ghcr.io -u <your-github-user> --password-stdin
+   ```
+4. **Stay in sync with upstream**:
+   ```bash
+   git remote add upstream https://github.com/1alexandrer/moodle-mcp.git   # once
+   git fetch upstream
+   git merge upstream/main
+   git push origin main
+   ```
+   Or use **Sync fork** on the GitHub page. After merging, check whether new tools need functions added to `MOODLE_WS_EXTRA_ALLOWED`; any that write to Moodle should stay blocked.
+
 ---
 
 ## Contributing
 
-Issues and PRs welcome. Open an issue first for large changes.
+Issues and PRs welcome. Open an issue first for large changes. For changes to the server itself, consider contributing to [upstream](https://github.com/1alexandrer/moodle-mcp).
 
 MIT License — © 2026 Alexandre Ribeiro

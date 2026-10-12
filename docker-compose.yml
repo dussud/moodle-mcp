@@ -1,0 +1,10 @@
+# Plain deployment: listens on 127.0.0.1:3000. Put a TLS reverse proxy
+# (Caddy, nginx, Traefik...) in front of it before exposing it to the internet.
+services:
+  moodle-mcp:
+    build: .
+    image: moodle-mcp:local
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:${MCP_PORT:-3000}:3000"
