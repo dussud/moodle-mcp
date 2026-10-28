@@ -48,10 +48,15 @@ export async function getCourse(client: MoodleClient, courseId: number): Promise
     lines.push(`### ${section.name || "General"}`);
     for (const mod of section.modules) {
       const link = mod.url ? ` — [open](${mod.url})` : "";
-      lines.push(`- \`${mod.modname}\` **${mod.name}**${link}`);
+      lines.push(`- \`${mod.modname}\` **${mod.name}** — moduleId: \`${mod.id}\`${link}`);
     }
   }
-  return lines.length ? lines.join("\n") : "This course has no content.";
+  if (lines.length === 0) return "This course has no content.";
+  lines.push(
+    "",
+    "_Read `page` modules with moodle_get_page and `book` modules with moodle_get_book (courseId + moduleId)._",
+  );
+  return lines.join("\n");
 }
 
 export function registerCourseTools(server: McpServer, client: MoodleClient): void {
@@ -64,7 +69,7 @@ export function registerCourseTools(server: McpServer, client: MoodleClient): vo
 
   server.tool(
     "moodle_get_course",
-    "Get the sections and modules of a specific course. Use moodle_list_courses first to get course IDs.",
+    "Get the sections and modules of a specific course, with each module's moduleId. Use moodle_list_courses first to get course IDs.",
     { courseId: z.number().describe("Course ID from moodle_list_courses") },
     async ({ courseId }) => ({
       content: [{ type: "text" as const, text: await getCourse(client, courseId) }],
