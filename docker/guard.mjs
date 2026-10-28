@@ -14,6 +14,7 @@ const READ_ONLY_FUNCTIONS = new Set([
   "mod_assign_get_assignments",
   "mod_assign_get_submission_status",
   "mod_forum_get_forum_discussions",
+  "mod_page_get_pages_by_courses",
   "mod_quiz_get_quizzes_by_courses",
   "mod_quiz_get_user_attempts",
 ]);

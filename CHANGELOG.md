@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `moodle_get_page` — read the text of a Page activity (HTML converted to Markdown-ish text); embedded files get `fileId`s for `moodle_download_file`
+- `moodle_get_book` — read a Book activity: table of contents plus chapter text, whole book or a single `chapterId`
+
+### Changed
+- `moodle_get_course` now shows each module's `moduleId`
+
 ## [0.1.0] — 2026-04-15
 
 ### Added

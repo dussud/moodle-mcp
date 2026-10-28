@@ -64,6 +64,8 @@
     { "name": "moodle_list_courses", "description": "List all Moodle courses you are enrolled in" },
     { "name": "moodle_get_course", "description": "Get sections and modules of a specific course" },
     { "name": "moodle_list_resources", "description": "List all downloadable files and links in a course" },
+    { "name": "moodle_get_page", "description": "Read the text of a Moodle Page activity" },
+    { "name": "moodle_get_book", "description": "Read a Moodle Book activity: table of contents and chapters" },
     { "name": "moodle_list_assignments", "description": "List all assignments in a course with due dates and grade info" },
     { "name": "moodle_get_assignment", "description": "Get submission status and grade feedback for an assignment" },
     { "name": "moodle_get_grades", "description": "Get your full grade report for a course" },

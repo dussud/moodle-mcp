@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsc",
     "deploy": "wrangler deploy",
-    "dev": "npx @modelcontextprotocol/inspector node dist/server.js",
+    "dev": "npx @modelcontextprotocol/inspector node --env-file-if-exists=.env dist/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build && npm test"

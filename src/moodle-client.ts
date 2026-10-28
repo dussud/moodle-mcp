@@ -140,6 +140,11 @@ export class MoodleClient {
     parsed.searchParams.set("token", this.token);
 
     const res = await fetch(parsed.toString());
+    if (res.headers.get("cf-mitigated") === "challenge") {
+      throw new Error(
+        "Blocked by this Moodle site's Cloudflare bot protection (HTTP 403 challenge). Open it in a browser instead.",
+      );
+    }
     if (!res.ok) throw new Error(`Failed to fetch file: HTTP ${res.status}`);
 
     const maxMb = Math.round(this.maxFileBytes / 1024 / 1024);

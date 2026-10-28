@@ -37,6 +37,8 @@ export function registerSiteInfoTool(server: McpServer, client: MoodleClient): v
         lines.push(`- ✅ \`moodle_list_courses\` (always available)`);
         lines.push(`- ✅ \`moodle_get_course\` (always available)`);
         lines.push(`- ✅ \`moodle_list_resources\` (always available)`);
+        lines.push(`- ✅ \`moodle_get_page\` (always available)`);
+        lines.push(`- ✅ \`moodle_get_book\` (always available)`);
         lines.push(`- ✅ \`moodle_list_forums\` (always available)`);
       }
 
