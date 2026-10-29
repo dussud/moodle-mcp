@@ -375,7 +375,8 @@ Tokens are invalidated when you reset them on the Security keys page, and often 
 |------|-------------|--------|
 | `moodle_get_site_info` | School name, Moodle version, which APIs are enabled | — |
 | `moodle_list_courses` | All your enrolled courses | — |
-| `moodle_get_course` | Sections and all activities in a course, with `moduleId`s | `courseId` |
+| `moodle_get_course` | Course outline: sections (with `sectionId` and a text preview), activities and labels (with `moduleId`s) | `courseId` |
+| `moodle_get_section` | One section in full: its own text (timetables, calendars), every label, and activity descriptions | `courseId`, `sectionId` |
 | `moodle_list_resources` | Files and links grouped by section — returns opaque `fileId`s | `courseId` |
 | `moodle_download_file` | Read a file by its `fileId` — returns text for text files, extracted text for PDF/DOCX, images as images | `fileId` |
 | `moodle_get_page` | Read the text of a Page activity | `courseId`, `moduleId` |
@@ -493,7 +494,7 @@ Some tools require your Moodle admin to enable specific web services. Run `moodl
 
 | Tool | Required | Notes |
 |------|----------|-------|
-| `moodle_list_courses`, `moodle_get_course`, `moodle_list_resources`, `moodle_download_file`, `moodle_get_page`, `moodle_get_book` | Always available | Core Moodle WS |
+| `moodle_list_courses`, `moodle_get_course`, `moodle_list_resources`, `moodle_download_file`, `moodle_get_section`, `moodle_get_page`, `moodle_get_book` | Always available | Core Moodle WS |
 | `moodle_list_assignments`, `moodle_get_assignment` | Admin must enable | `mod_assign` service |
 | `moodle_get_grades` | Admin must enable | `gradereport_user` service |
 | `moodle_get_calendar_events` | Usually available | `core_calendar` service |

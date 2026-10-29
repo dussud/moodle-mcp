@@ -105,9 +105,11 @@ export function htmlToText(html: string): string {
       return text && text !== href ? `[${text}](${href})` : href;
     })
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level: string, inner: string) =>
-      `\n\n${"#".repeat(Number(level))} ${stripTags(inner).trim()}\n\n`,
-    )
+    .replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level: string, inner: string) => {
+      // Editors often leave empty headings behind; don't emit bare "###".
+      const text = stripTags(inner).trim();
+      return text ? `\n\n${"#".repeat(Number(level))} ${text}\n\n` : "\n\n";
+    })
     .replace(/<(strong|b)\b[^>]*>([\s\S]*?)<\/\1>/gi, (_, _t, inner: string) =>
       inner.trim() ? `**${inner.trim()}**` : inner,
     )

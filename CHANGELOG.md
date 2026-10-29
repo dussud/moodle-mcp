@@ -3,11 +3,12 @@
 ## [Unreleased]
 
 ### Added
+- `moodle_get_section` — read one course section in full: the section's own text (timetables, calendars), every label, and activity descriptions
 - `moodle_get_page` — read the text of a Page activity (HTML converted to Markdown-ish text); embedded files get `fileId`s for `moodle_download_file`
 - `moodle_get_book` — read a Book activity: table of contents plus chapter text, whole book or a single `chapterId`
 
 ### Changed
-- `moodle_get_course` now shows each module's `moduleId`
+- `moodle_get_course` now shows each module's `moduleId`, each section's `sectionId` with a preview of its text, and label previews instead of truncated names; sections that contain only text are no longer hidden
 - `moodle_download_file` extracts text from PDF (unpdf) and DOCX (mammoth) instead of returning an embedded resource Claude clients refuse; images are returned as image content
 - `moodle_get_forum_discussions` includes an excerpt of each opening post
 - HTML tables (pages, books, DOCX) are rendered as Markdown tables
