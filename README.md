@@ -377,7 +377,7 @@ Tokens are invalidated when you reset them on the Security keys page, and often 
 | `moodle_list_courses` | All your enrolled courses | — |
 | `moodle_get_course` | Sections and all activities in a course, with `moduleId`s | `courseId` |
 | `moodle_list_resources` | Files and links grouped by section — returns opaque `fileId`s | `courseId` |
-| `moodle_download_file` | Read a file by its `fileId` — returns text for text/JSON/XML, base64 for PDFs/DOCX/images | `fileId` |
+| `moodle_download_file` | Read a file by its `fileId` — returns text for text files, extracted text for PDF/DOCX, images as images | `fileId` |
 | `moodle_get_page` | Read the text of a Page activity | `courseId`, `moduleId` |
 | `moodle_get_book` | Read a Book activity — table of contents plus chapter text | `courseId`, `moduleId`, `chapterId?` |
 | `moodle_list_assignments` | Assignments with due dates, grouped by section | `courseId` |
@@ -514,7 +514,7 @@ Tool responses never contain raw or authenticated Moodle file URLs. Instead, `mo
 2. Re-checks with Moodle that the file is still visible to you (catches unenrolment, hidden modules, removed files).
 3. Refuses anything that isn't a `pluginfile.php` URL on your Moodle host (no SSRF relay).
 4. Fetches the file server-side with the token attached to the outbound request only — the token never appears in anything returned to the MCP client.
-5. Returns text for text/JSON/XML MIMEs, or the bytes as an MCP embedded resource (base64) for PDFs/DOCX/images.
+5. Returns text for text/JSON/XML MIMEs, extracted text for PDF and DOCX (Claude clients refuse those as embedded resources), image content for images, and an MCP embedded resource (base64) for anything else.
 
 This fixes the "domain not in the list of allowed fetch" error seen with Claude.ai's beta connectors when a chat tried to open a Moodle-hosted PDF: Claude no longer has to fetch anything cross-origin, because the content arrives inside the MCP response.
 

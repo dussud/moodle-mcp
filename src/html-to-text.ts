@@ -71,6 +71,19 @@ export function htmlToText(html: string): string {
   });
   s = s.replace(/\s+/g, " ");
 
+  // Tables become Markdown tables, innermost first. Cells are converted on their
+  // own and flattened to one line, since rubric cells often hold several paragraphs.
+  const tables: string[] = [];
+  const innermostTable = /<table\b[^>]*>((?:(?!<table\b)[\s\S])*?)<\/table>/gi;
+  while (innermostTable.test(s)) {
+    s = s.replace(innermostTable, (_, inner: string) => {
+      const table = tableToMarkdown(inner);
+      if (!table) return "";
+      tables.push(table);
+      return `\n\n\u0000TBL${tables.length - 1}\u0000\n\n`;
+    });
+  }
+
   s = s
     .replace(/<img\b[^>]*>/gi, (tag) => {
       const alt = (attr(tag, "alt") ?? attr(tag, "title") ?? "").trim();
@@ -118,6 +131,22 @@ export function htmlToText(html: string): string {
     .trim();
 
   return s
+    .replace(/\n*\u0000TBL(\d+)\u0000\n*/g, (_, i: string) => `\n\n${tables[Number(i)]}\n\n`)
     .replace(/\n*\u0000PRE(\d+)\u0000\n*/g, (_, i: string) => `\n\n\`\`\`\n${pres[Number(i)].replace(/^\n+|\s+$/g, "")}\n\`\`\`\n\n`)
     .trim();
+}
+
+function tableToMarkdown(inner: string): string {
+  const rows: string[][] = [];
+  for (const [, row] of inner.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const cells = [...row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(([, cell]) =>
+      htmlToText(cell).replace(/\s*\n+\s*/g, " / ").replace(/\|/g, "\\|"),
+    );
+    if (cells.some((c) => c)) rows.push(cells);
+  }
+  if (rows.length === 0) return "";
+  const width = Math.max(...rows.map((r) => r.length));
+  const line = (r: string[]) => `| ${Array.from({ length: width }, (_, i) => r[i] ?? "").join(" | ")} |`;
+  const [head, ...body] = rows;
+  return [line(head), `|${" --- |".repeat(width)}`, ...body.map(line)].join("\n");
 }

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { MoodleClient } from "../moodle-client.js";
 import type { FileRef } from "../file-id-store.js";
+import { extractableKind, extractText } from "../extract-text.js";
 
 interface ModuleContent {
   type: string;
@@ -63,7 +64,7 @@ async function reauthorize(client: MoodleClient, ref: FileRef): Promise<boolean>
 export function registerDownloadTool(server: McpServer, client: MoodleClient): void {
   server.tool(
     "moodle_download_file",
-    "Download a Moodle course file by its opaque fileId (from moodle_list_resources). Returns text for text/JSON/XML files; returns the raw bytes as an embedded resource for binary formats like PDFs, DOCX, images. The server fetches the file — you never need to fetch Moodle URLs directly.",
+    "Read a Moodle course file by its opaque fileId (from moodle_list_resources, moodle_get_page or moodle_get_book). Returns plain text for text files and extracted text for PDF and DOCX files; images come back as images and other formats as an embedded resource. The server fetches the file — you never need to fetch Moodle URLs directly.",
     {
       fileId: z.string().describe("Opaque fileId returned by moodle_list_resources"),
     },
@@ -116,6 +117,39 @@ export function registerDownloadTool(server: McpServer, client: MoodleClient): v
               type: "text" as const,
               text: `**${ref.filename}** (${mime})\n\n${text}`,
             },
+          ],
+        };
+      }
+
+      const kind = extractableKind(mime, ref.filename);
+      if (kind) {
+        let text: string;
+        try {
+          text = await extractText(kind, downloaded.bytes);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: `Could not extract text from **${ref.filename}**: ${message}` }],
+          };
+        }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: text
+                ? `**${ref.filename}** (${kind.toUpperCase()}, text extracted)\n\n${text}`
+                : `**${ref.filename}** has no extractable text (likely a scanned or image-only ${kind.toUpperCase()}).`,
+            },
+          ],
+        };
+      }
+
+      if (mime.startsWith("image/")) {
+        return {
+          content: [
+            { type: "text" as const, text: `**${ref.filename}** (${mime})` },
+            { type: "image" as const, data: bytesToBase64(downloaded.bytes), mimeType: mime },
           ],
         };
       }

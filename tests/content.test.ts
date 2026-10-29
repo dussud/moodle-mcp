@@ -175,3 +175,12 @@ describe("content tools", () => {
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("htmlToText tables", () => {
+  it("renders tables as Markdown with multi-paragraph cells flattened", () => {
+    const out = htmlToText(
+      "<table><tr><td></td><td><p>Fail</p></td></tr><tr><td>Tech</td><td><p>Does not work</p><p>At all | ever</p></td></tr></table>",
+    );
+    expect(out).toBe("|  | Fail |\n| --- | --- |\n| Tech | Does not work / At all \\| ever |");
+  });
+});

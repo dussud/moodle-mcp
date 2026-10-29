@@ -5,7 +5,7 @@ import type { MoodleClient } from "../moodle-client.js";
 interface CalendarEvent {
   id: number;
   name: string;
-  courseid: number;
+  courseid?: number;
   timestart: number;
   timeduration: number;
   eventtype: string;
@@ -48,7 +48,8 @@ export async function getCalendarEvents(
 
   let events = data.events ?? [];
   if (courseId) {
-    events = events.filter((e) => e.courseid === courseId);
+    // Action events carry the course as a nested object, not a top-level courseid.
+    events = events.filter((e) => (e.course?.id ?? e.courseid) === courseId);
   }
 
   if (events.length === 0) {
@@ -60,7 +61,7 @@ export async function getCalendarEvents(
   // Group by course
   const byCourse = new Map<string, CalendarEvent[]>();
   for (const event of events) {
-    const key = event.course?.fullname ?? `Course ${event.courseid}`;
+    const key = event.course?.fullname ?? `Course ${event.course?.id ?? event.courseid}`;
     if (!byCourse.has(key)) byCourse.set(key, []);
     byCourse.get(key)!.push(event);
   }

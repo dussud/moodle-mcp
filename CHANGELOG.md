@@ -8,6 +8,15 @@
 
 ### Changed
 - `moodle_get_course` now shows each module's `moduleId`
+- `moodle_download_file` extracts text from PDF (unpdf) and DOCX (mammoth) instead of returning an embedded resource Claude clients refuse; images are returned as image content
+- `moodle_get_forum_discussions` includes an excerpt of each opening post
+- HTML tables (pages, books, DOCX) are rendered as Markdown tables
+
+### Fixed
+- `moodle_list_forums` returned course-module IDs; it now returns the forum instance IDs `moodle_get_forum_discussions` expects
+- `moodle_get_forum_discussions` sent `sortby`/`sortdirection`, which Moodle rejects as invalid parameters
+- `moodle_get_calendar_events` filtered on a field action events don't have, so a `courseId` filter always returned nothing
+- `moodle_list_assignments` failed outright when Moodle's `mod_assign_get_assignments` errored for a course ("Invalid response value detected"); it now falls back to due dates from the course contents
 
 ## [0.1.0] — 2026-04-15
 
