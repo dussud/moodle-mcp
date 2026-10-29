@@ -4,6 +4,7 @@ import { listAssignments } from "../src/tools/assignments.js";
 import { getCalendarEvents } from "../src/tools/calendar.js";
 import { listForums, getForumDiscussions } from "../src/tools/forums.js";
 import { extractableKind } from "../src/extract-text.js";
+import { getCourse, getSection } from "../src/tools/courses.js";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -72,5 +73,44 @@ describe("connector fixes", () => {
     expect(extractableKind("application/pdf", "x.bin")).toBe("pdf");
     expect(extractableKind("application/octet-stream", "Rubric.DOCX")).toBe("docx");
     expect(extractableKind("image/png", "a.png")).toBeNull();
+  });
+});
+
+describe("section content", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const course = [
+    { id: 1, name: "Calendar of Events", summary: "<h4></h4><table><tr><th>Week</th><th>Tuesday</th></tr><tr><td>10</td><td>11 am CS session, Room 402</td></tr></table>", modules: [] },
+    { id: 2, name: "Week 1", summary: "", modules: [
+      { id: 50, name: "Intro text that Moodle truncates…", modname: "label", description: "<h3>Intro</h3><p>Full label text with the details.</p>" },
+      { id: 51, name: "Notes", modname: "page", url: "https://moodle.uni.edu/mod/page/view.php?id=51", description: "<p>Read before class.</p>" },
+    ] },
+    { id: 3, name: "Empty", summary: "", modules: [] },
+  ];
+
+  it("getCourse lists summary-only sections with sectionIds and label previews", async () => {
+    const client = await makeClient();
+    mockFetch.mockResolvedValueOnce(json(course));
+    const out = await getCourse(client, 5);
+    expect(out).toContain("### Calendar of Events — sectionId: `1`");
+    expect(out).toContain("- `label` Intro Full label text with the details.");
+    expect(out).not.toContain("Empty");
+    expect(out).not.toContain("###\n");
+  });
+
+  it("getSection returns the full section text, labels and activity descriptions", async () => {
+    const client = await makeClient();
+    mockFetch.mockResolvedValueOnce(json(course));
+    const cal = await getSection(client, 5, 1);
+    expect(cal).toContain("| 10 | 11 am CS session, Room 402 |");
+
+    mockFetch.mockResolvedValueOnce(json(course));
+    const week = await getSection(client, 5, 2);
+    expect(week).toContain("### Intro\n\nFull label text with the details.");
+    expect(week).toContain("- `page` **Notes** — moduleId: `51`");
+    expect(week).toContain("  Read before class.");
+
+    mockFetch.mockResolvedValueOnce(json(course));
+    expect(await getSection(client, 5, 99)).toContain("not found");
   });
 });

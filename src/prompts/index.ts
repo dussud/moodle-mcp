@@ -76,6 +76,7 @@ Steps:
 1. Call moodle_get_course with courseId=${courseId} to get the course structure
 2. Call moodle_list_resources with courseId=${courseId} to get all files
 3. For each file listed, read it via the MCP resource URI moodle://courses/${courseId}/files/... to get its actual content
+   - Read every section in full with moodle_get_section (courseId + sectionId from step 1): section text and labels often hold the key information
    - Also read every \`page\` module with moodle_get_page and every \`book\` module with moodle_get_book (courseId + moduleId from step 1)
 4. Call moodle_list_assignments with courseId=${courseId} to get graded work
 5. Call moodle_get_grades with courseId=${courseId} to see grade feedback
