@@ -20,7 +20,13 @@ interface AssignmentsResponse {
 interface CourseSection {
   id: number;
   name: string;
-  modules: { id: number; name: string; modname: string }[];
+  modules: {
+    id: number;
+    instance: number;
+    name: string;
+    modname: string;
+    dates?: { label: string; timestamp: number; dataid?: string }[];
+  }[];
 }
 
 interface SubmissionStatus {
@@ -50,12 +56,14 @@ export async function listAssignments(client: MoodleClient, courseId: number): P
 
   const [sections, assignData] = await Promise.all([
     client.call<CourseSection[]>("core_course_get_contents", { courseid: courseId }),
-    client.call<AssignmentsResponse>("mod_assign_get_assignments", {
-      "courseids[0]": courseId,
-    }),
+    // Some sites fail this call for a whole course ("Invalid response value
+    // detected") when one assignment has bad data; fall back to course contents.
+    client
+      .call<AssignmentsResponse>("mod_assign_get_assignments", { "courseids[0]": courseId })
+      .catch(() => null),
   ]);
 
-  const assignments = assignData.courses[0]?.assignments ?? [];
+  const assignments = assignData?.courses[0]?.assignments ?? [];
   const byModule = new Map(assignments.map((a) => [a.coursemodule, a]));
 
   const lines: string[] = [`## Assignments — Course ${courseId}\n`];
@@ -71,7 +79,9 @@ export async function listAssignments(client: MoodleClient, courseId: number): P
     for (const mod of assignMods) {
       const detail = byModule.get(mod.id);
       if (!detail) {
-        lines.push(`- **${mod.name}** *(details unavailable)*`);
+        const due = mod.dates?.find((d) => d.dataid === "duedate")?.timestamp ?? 0;
+        lines.push(`- **${mod.name}** — ${due ? `Due: ${formatDate(due)}` : "No due date"}`);
+        lines.push(`  ID: \`${mod.instance}\` (use with moodle_get_assignment)`);
         continue;
       }
       const due = detail.duedate ? `Due: ${formatDate(detail.duedate)}` : "No due date";

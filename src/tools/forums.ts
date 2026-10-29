@@ -1,18 +1,21 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { MoodleClient } from "../moodle-client.js";
+import { htmlToText } from "../html-to-text.js";
 
 interface CourseSection {
   id: number;
   name: string;
-  modules: { id: number; name: string; modname: string; url?: string }[];
+  modules: { id: number; instance: number; name: string; modname: string; url?: string }[];
 }
 
 interface Discussion {
   id: number;
   discussion: number;
   name: string;
-  firstuserfullname: string;
+  userfullname?: string;
+  firstuserfullname?: string;
+  message?: string;
   numreplies: number;
   timemodified: number;
   pinned: boolean;
@@ -21,6 +24,8 @@ interface Discussion {
 interface DiscussionsResponse {
   discussions: Discussion[];
 }
+
+const MAX_EXCERPT = 600;
 
 function formatDate(ts: number): string {
   return new Date(ts * 1000).toLocaleString("en-CA", { dateStyle: "medium" });
@@ -42,7 +47,8 @@ export async function listForums(client: MoodleClient, courseId: number): Promis
     hasAny = true;
 
     for (const mod of forumMods) {
-      lines.push(`- **${mod.name}** — ID: \`${mod.id}\` (use with moodle_get_forum_discussions)`);
+      // mod.id is the course-module id; the forum API wants the forum instance id.
+      lines.push(`- **${mod.name}** — ID: \`${mod.instance}\` (use with moodle_get_forum_discussions)`);
       if (mod.url) lines.push(`  [Open](${mod.url})`);
     }
     lines.push("");
@@ -58,9 +64,8 @@ export async function getForumDiscussions(client: MoodleClient, forumId: number)
   }
 
   const data = await client.call<DiscussionsResponse>("mod_forum_get_forum_discussions", {
+    // Default sort order is most recent post first.
     forumid: forumId,
-    sortby: "timemodified",
-    sortdirection: "DESC",
     page: 0,
     perpage: 20,
   });
@@ -73,7 +78,10 @@ export async function getForumDiscussions(client: MoodleClient, forumId: number)
   for (const d of discussions) {
     const pinned = d.pinned ? " 📌" : "";
     lines.push(`- **${d.name}**${pinned}`);
-    lines.push(`  By ${d.firstuserfullname} | ${d.numreplies} replies | Last activity: ${formatDate(d.timemodified)}`);
+    const author = d.userfullname ?? d.firstuserfullname ?? "Unknown";
+    lines.push(`  By ${author} | ${d.numreplies} replies | Last activity: ${formatDate(d.timemodified)}`);
+    const text = htmlToText(d.message ?? "").replace(/\s+/g, " ").trim();
+    if (text) lines.push(`  > ${text.length > MAX_EXCERPT ? `${text.slice(0, MAX_EXCERPT)}…` : text}`);
   }
 
   return lines.join("\n");
@@ -91,7 +99,7 @@ export function registerForumTools(server: McpServer, client: MoodleClient): voi
 
   server.tool(
     "moodle_get_forum_discussions",
-    "Get recent discussions in a forum — title, author, reply count, and last activity date.",
+    "Get recent discussions in a forum — title, author, reply count, last activity date, and an excerpt of the opening post.",
     { forumId: z.number().describe("Forum ID from moodle_list_forums") },
     async ({ forumId }) => ({
       content: [{ type: "text" as const, text: await getForumDiscussions(client, forumId) }],
