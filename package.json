@@ -1,7 +1,7 @@
 {
   "name": "moodle-mcp",
   "version": "0.2.0",
-  "description": "MCP server for Moodle — give Claude access to your courses, files, grades, and more. Build Obsidian study vaults from lecture notes in one command.",
+  "description": "MCP server for UCL Moodle: give Claude or ChatGPT access to your courses, files, grades and more.",
   "type": "module",
   "bin": {
     "moodle-mcp": "./dist/server.js"
@@ -13,6 +13,7 @@
     "manifest.json"
   ],
   "scripts": {
+    "setup": "node scripts/setup.mjs",
     "build": "tsc",
     "deploy": "wrangler deploy",
     "dev": "npx @modelcontextprotocol/inspector node --env-file-if-exists=.env dist/server.js",
@@ -37,6 +38,7 @@
   },
   "license": "MIT",
   "keywords": [
+    "ucl",
     "moodle",
     "mcp",
     "claude",
@@ -47,10 +49,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/1alexandrer/moodle-mcp.git"
+    "url": "https://github.com/dussud/moodle-mcp.git"
   },
-  "homepage": "https://github.com/1alexandrer/moodle-mcp#readme",
+  "homepage": "https://github.com/dussud/moodle-mcp#readme",
   "bugs": {
-    "url": "https://github.com/1alexandrer/moodle-mcp/issues"
+    "url": "https://github.com/dussud/moodle-mcp/issues"
   }
 }

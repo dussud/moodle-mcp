@@ -1,560 +1,269 @@
+# UCL Moodle MCP
 
-
-
-
-# moodle-mcp
-
-[![npm version](https://img.shields.io/npm/v/moodle-mcp?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/moodle-mcp)
-[![npm downloads](https://img.shields.io/npm/dm/moodle-mcp?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/moodle-mcp)
-[![GitHub stars](https://img.shields.io/github/stars/1alexandrer/moodle-mcp?style=social)](https://github.com/1alexandrer/moodle-mcp)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Node](https://img.shields.io/badge/Node-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com)
 [![MIT License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-> Give Claude full access to your Moodle — courses, files, assignments, grades, quizzes, calendar, and more. Build Obsidian study vaults from your lecture notes in one command.
+An MCP server that lets Claude or ChatGPT read your [UCL Moodle](https://moodle.ucl.ac.uk): courses, files, assignments, grades, quizzes, calendar and forums. It is read-only and has 17 tools and 5 prompts.
 
-> 📦 **[moodle-mcp on npm](https://www.npmjs.com/package/moodle-mcp)** — `npx moodle-mcp`
+This is a fork of [1alexandrer/moodle-mcp](https://github.com/1alexandrer/moodle-mcp) that only supports UCL Moodle. On top of upstream it adds:
 
-**14 tools · 5 prompts · MCP Resources · read-only**
+- a setup command, `npm create ucl-moodle-mcp`, that gets your token through UCL's single sign-on and deploys your own private server
+- a secret in the server URL, so only you can use your Cloudflare Worker or Docker deployment
+- a [Docker deployment](#self-hosting-with-docker) with a [read-only guard](#read-only-guard) that blocks uploads and any other write to Moodle
 
-> 🍴 **This is a fork of [1alexandrer/moodle-mcp](https://github.com/1alexandrer/moodle-mcp)** that adds a [self-hosted Docker deployment](#self-hosting-with-docker) with an authenticated endpoint and a [read-only guard](#read-only-guard) that blocks uploads and any other write to Moodle.
+If you're at another university, use [upstream](https://github.com/1alexandrer/moodle-mcp), which works with any Moodle site.
 
+## Quick start
 
----
+You need:
 
-## Install
+- [Node.js 18 or newer](https://nodejs.org) (the LTS version is fine)
+- a free [Cloudflare account](https://dash.cloudflare.com/sign-up/workers-and-pages)
+- to be logged in to [UCL Moodle](https://moodle.ucl.ac.uk) in your default browser
 
-### Step 1 — Get your Moodle token
+Then run this in a terminal (PowerShell on Windows, Terminal on macOS):
 
-See [Getting Your Token](#getting-your-token) below. You'll need this for any install method.
-
-### Step 2 — Pick your delivery mode
-
-**Option A — Local (zero hosting):** Runs `npx moodle-mcp` on your machine each time your MCP client starts. No server, no cost, nothing to deploy.
-
-**Option B — Hosted (Cloudflare Worker):** Deploy once, get a permanent URL. Your MCP client connects to the URL — no `npx` on the client side.
-
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/ )
-
-After deploying, set `MOODLE_URL` and `MOODLE_TOKEN` as [secrets in the CF dashboard](https://dash.cloudflare.com/) or via:
 ```bash
-npx wrangler secret put MOODLE_URL
-npx wrangler secret put MOODLE_TOKEN
-npm run deploy
-```
-Your URL will be `https://moodle-mcp.<your-subdomain>.workers.dev`.
-
-> ⚠️ The Cloudflare Worker endpoint has **no authentication**: anyone who learns the URL can read your Moodle with your token. Prefer Option C if you can.
-
-**Option C — Self-hosted (Docker, recommended for hosting):** Run it on any VPS / home server with Docker. The endpoint is protected by a secret key and the [read-only guard](#read-only-guard) is on by default. See [Self-hosting with Docker](#self-hosting-with-docker). Your URL will be `https://<your-host>/<MCP_AUTH_SECRET>/mcp`; use it anywhere the client examples below show a hosted URL.
-
-### Step 3 — Configure your MCP client
-
-<details>
-<summary><strong>Claude Desktop</strong></summary>
-
-Config file:
-- Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-
-**Option A — Local:**
-```json
-{
-  "mcpServers": {
-    "moodle": {
-      "command": "npx",
-      "args": ["-y", "moodle-mcp"],
-      "env": {
-        "MOODLE_URL": "https://moodle.yourschool.edu",
-        "MOODLE_TOKEN": "your_token_here"
-      }
-    }
-  }
-}
+npm create ucl-moodle-mcp
 ```
 
-**Option B — Hosted:**
-```json
-{
-  "mcpServers": {
-    "moodle": {
-      "url": "https://moodle-mcp.your-subdomain.workers.dev"
-    }
-  }
-}
-```
-</details>
+The setup does three things:
 
-<details>
-<summary><strong>Claude Code (CLI)</strong></summary>
+1. It opens a Moodle login link in your default browser and catches your token. This is the same link the official Moodle app uses (see [Getting your token](#getting-your-token)). Your browser may ask whether to open a `moodlemobile` link. Click Open or Allow. If you're not logged in to Moodle, it stops and asks you to log in first.
+2. It asks you to log in to Cloudflare (the first time only), deploys your own Cloudflare Worker and stores your token there as an encrypted secret.
+3. It prints your MCP URL, which looks like `https://moodle-mcp.<you>.workers.dev/<secret>/mcp`.
 
-**Option A — Local:**
-```bash
-claude mcp add moodle npx -- -y moodle-mcp \
-  -e MOODLE_URL=https://moodle.yourschool.edu \
-  -e MOODLE_TOKEN=your_token_here
-```
+**Don't share that URL.** It's tied to your Moodle account, and anyone who has it can read your courses, files, grades and messages as you. If it leaks, run `npm create ucl-moodle-mcp` again. You'll get a new URL and the old one stops working.
 
-**Option B — Hosted:**
-```bash
-claude mcp add moodle --transport http https://moodle-mcp.your-subdomain.workers.dev
-```
-</details>
+Run the same command again when your token expires (the tools start answering `Invalid Moodle token`). If you have a clone of this repo, `npm run setup` does the same thing.
 
-<details>
-<summary><strong>Cursor</strong></summary>
+## Connect your AI assistant
 
-Config file: `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project)
+Add your MCP URL to your assistant:
 
-**Option A — Local:**
-```json
-{
-  "mcpServers": {
-    "moodle": {
-      "command": "npx",
-      "args": ["-y", "moodle-mcp"],
-      "env": {
-        "MOODLE_URL": "https://moodle.yourschool.edu",
-        "MOODLE_TOKEN": "your_token_here"
-      }
-    }
-  }
-}
-```
+- **Claude** (web, desktop and mobile): Settings > Connectors > Add custom connector, then paste the URL. See [Anthropic's guide](https://support.claude.com/en/articles/11175166-getting-started-with-custom-connectors-using-remote-mcp).
+- **ChatGPT**: add a custom MCP server with the URL and no authentication. See [OpenAI's guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
+- **Claude Code**:
+  ```bash
+  claude mcp add moodle --transport http https://moodle-mcp.<you>.workers.dev/<secret>/mcp
+  ```
+- **Cursor, VS Code, Windsurf, Cline, Continue and others**: add a remote MCP server with the URL. In Cursor, for example, put this in `~/.cursor/mcp.json`:
+  ```json
+  { "mcpServers": { "moodle": { "url": "https://moodle-mcp.<you>.workers.dev/<secret>/mcp" } } }
+  ```
 
-**Option B — Hosted:**
-```json
-{
-  "mcpServers": {
-    "moodle": {
-      "url": "https://moodle-mcp.your-subdomain.workers.dev"
-    }
-  }
-}
-```
-</details>
+## Getting your token
 
-<details>
-<summary><strong>VS Code</strong></summary>
+UCL Moodle logs you in through UCL's single sign-on, so the only way to get a token is the one the official Moodle app uses: the mobile-app launch link. `npm create ucl-moodle-mcp` does this for you. Here are the manual steps in case you need them.
 
-Config file: `.vscode/mcp.json` in your project, or `settings.json` globally.
-
-**Option A — Local:**
-```json
-{
-  "servers": {
-    "moodle": {
-      "command": "npx",
-      "args": ["-y", "moodle-mcp"],
-      "env": {
-        "MOODLE_URL": "https://moodle.yourschool.edu",
-        "MOODLE_TOKEN": "your_token_here"
-      }
-    }
-  }
-}
-```
-
-**Option B — Hosted:**
-```json
-{
-  "servers": {
-    "moodle": {
-      "url": "https://moodle-mcp.your-subdomain.workers.dev"
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>Windsurf</strong></summary>
-
-Config file: `~/.codeium/windsurf/mcp_config.json`
-
-**Option A — Local:**
-```json
-{
-  "mcpServers": {
-    "moodle": {
-      "command": "npx",
-      "args": ["-y", "moodle-mcp"],
-      "env": {
-        "MOODLE_URL": "https://moodle.yourschool.edu",
-        "MOODLE_TOKEN": "your_token_here"
-      }
-    }
-  }
-}
-```
-
-**Option B — Hosted:**
-```json
-{
-  "mcpServers": {
-    "moodle": {
-      "url": "https://moodle-mcp.your-subdomain.workers.dev"
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>Zed</strong></summary>
-
-Config file: `~/.config/zed/settings.json`
-
-**Option A — Local:**
-```json
-{
-  "context_servers": {
-    "moodle": {
-      "command": {
-        "path": "npx",
-        "args": ["-y", "moodle-mcp"],
-        "env": {
-          "MOODLE_URL": "https://moodle.yourschool.edu",
-          "MOODLE_TOKEN": "your_token_here"
-        }
-      }
-    }
-  }
-}
-```
-
-**Option B — Hosted:**
-```json
-{
-  "context_servers": {
-    "moodle": {
-      "url": "https://moodle-mcp.your-subdomain.workers.dev"
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>Continue.dev</strong></summary>
-
-Config file: `~/.continue/config.json`
-
-**Option A — Local:**
-```json
-{
-  "mcpServers": [
-    {
-      "name": "moodle",
-      "command": "npx",
-      "args": ["-y", "moodle-mcp"],
-      "env": {
-        "MOODLE_URL": "https://moodle.yourschool.edu",
-        "MOODLE_TOKEN": "your_token_here"
-      }
-    }
-  ]
-}
-```
-
-**Option B — Hosted:**
-```json
-{
-  "mcpServers": [
-    {
-      "name": "moodle",
-      "url": "https://moodle-mcp.your-subdomain.workers.dev"
-    }
-  ]
-}
-```
-</details>
-
-<details>
-<summary><strong>Cline</strong></summary>
-
-Open the Cline sidebar in VS Code → MCP Servers → Add Server → paste the JSON:
-
-**Option A — Local:**
-```json
-{
-  "moodle": {
-    "command": "npx",
-    "args": ["-y", "moodle-mcp"],
-    "env": {
-      "MOODLE_URL": "https://moodle.yourschool.edu",
-      "MOODLE_TOKEN": "your_token_here"
-    }
-  }
-}
-```
-
-**Option B — Hosted:**
-```json
-{
-  "moodle": {
-    "url": "https://moodle-mcp.your-subdomain.workers.dev"
-  }
-}
-```
-</details>
-
-<details>
-<summary><strong>ChatGPT — Coming soon</strong></summary>
-
-OpenAI has announced MCP support for ChatGPT. Check the [OpenAI blog](https://openai.com/blog) for the release date. Once available, the hosted URL option (Option B) will work directly.
-</details>
-
----
-
-## Getting Your Token
-
-Every method below ends with a **32-character hex string** (e.g. `0123456789abcdef0123456789abcdef`). That string, and nothing else, goes in `MOODLE_TOKEN`.
-
-You can check a token before using it:
-```bash
-curl -s "https://moodle.yourschool.edu/webservice/rest/server.php?moodlewsrestformat=json&wsfunction=core_webservice_get_site_info" \
-  --data-urlencode "wstoken=YOUR_TOKEN" | head -c 200
-```
-A valid token returns your `sitename`; `"errorcode":"invalidtoken"` means the token is wrong, expired or revoked.
-
-### Option A — Security keys page (if your school shows it)
-
-1. Log in to your school's Moodle in a browser
-2. Open `https://moodle.yourschool.edu/user/managetoken.php` (**Profile → Preferences → Security keys**)
-3. Copy the token for **Moodle mobile web service**
-
-Many schools hide this page or don't list the mobile service. If so, use Option B.
-
-### Option B — Browser launch URL (works with SSO: Microsoft, Google, Shibboleth…)
-
-This uses the same login flow as the official Moodle app.
-
-1. In a desktop browser (Chrome/Edge/Firefox), log in to your Moodle normally.
-2. Open DevTools (**F12**) → **Console** tab, and keep it open.
-3. In the **same tab**, go to:
+1. In a desktop browser (Chrome, Edge or Firefox), log in to [UCL Moodle](https://moodle.ucl.ac.uk).
+2. Open DevTools (F12) and go to the Console tab. Keep it open.
+3. In the same tab, go to:
    ```
-   https://moodle.yourschool.edu/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=12345&urlscheme=moodlemobile
+   https://moodle.ucl.ac.uk/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=12345&urlscheme=moodlemobile
    ```
-   The page appears to do nothing: Moodle is trying to redirect to the app.
+   The page seems to do nothing, because Moodle is trying to hand you over to the app.
 4. The Console shows an error with a URL like `moodlemobile://token=BASE64STRING`. Copy everything after `token=`.
-   If nothing appears, look in the **Network** tab for the `launch.php` request and copy its `Location` response header.
+   If nothing shows up, look in the Network tab for the `launch.php` request and copy its `Location` response header.
 5. Decode it in the Console:
    ```js
    atob("BASE64STRING")
    ```
-   The result looks like `signature:::TOKEN` or `signature:::TOKEN:::privatetoken`.
-   **Use only the middle 32-character `TOKEN` part.** Pasting the whole string gives `invalidtoken`.
+   You get `signature:::TOKEN` or `signature:::TOKEN:::privatetoken`. Use only the middle part, the 32-character `TOKEN`. Pasting the whole string gives `invalidtoken`.
 
-If the page says the mobile app is not enabled / not allowed, your school has blocked mobile access and none of these methods will work.
-
-### Option C — `login/token.php` (non-SSO schools only)
+To check a token:
 
 ```bash
-curl -s "https://moodle.yourschool.edu/login/token.php" \
-  --data-urlencode "username=YOUR_USERNAME" \
-  --data-urlencode "password=YOUR_PASSWORD" \
-  --data-urlencode "service=moodle_mobile_app"
+curl -s "https://moodle.ucl.ac.uk/webservice/rest/server.php?moodlewsrestformat=json&wsfunction=core_webservice_get_site_info" \
+  --data-urlencode "wstoken=YOUR_TOKEN" | head -c 200
 ```
-Returns `{"token":"...","privatetoken":"..."}`; use `token`. Use POST as shown rather than putting your password in a URL (it ends up in browser history and server logs).
 
-For the local `npx` mode only, non-SSO users can also skip the token and set `MOODLE_USERNAME` + `MOODLE_PASSWORD` instead. The hosted modes (Cloudflare and Docker) require `MOODLE_TOKEN`.
+A valid token returns `"sitename"`. If you get `"errorcode":"invalidtoken"`, the token is wrong, expired or revoked.
 
-> ⚠️ **SSO schools**: if your login page redirects to Microsoft, Google or another identity provider, Option C will not work. Use Option B.
+Tokens stop working when they expire or when you log out of the Moodle app. Get a new one, or rerun the setup.
 
-### Token lifetime
+## Other ways to run it
 
-Tokens are invalidated when you reset them on the Security keys page, and often when you log out of the Moodle app or when the school's token expiry passes. If tools start returning `Invalid Moodle token`, get a new one and restart the server.
+The server only talks to `https://moodle.ucl.ac.uk`. You don't need to set `MOODLE_URL`, and the server refuses to start if it's set to another site. Every mode below only needs `MOODLE_TOKEN`.
 
----
+### Cloudflare Worker, by hand
+
+These are the steps `npm create ucl-moodle-mcp` runs for you:
+
+```bash
+git clone https://github.com/dussud/moodle-mcp.git
+cd moodle-mcp
+npm install
+npx wrangler login
+npx wrangler deploy
+npx wrangler secret put MOODLE_TOKEN
+npx wrangler secret put MCP_AUTH_SECRET     # for example the output of: openssl rand -hex 32
+```
+
+Your URL is `https://moodle-mcp.<your-subdomain>.workers.dev/<MCP_AUTH_SECRET>/mcp`. Requests without the secret get a `404`. Clients that can send headers can use `/mcp` with `Authorization: Bearer <MCP_AUTH_SECRET>` instead.
+
+If you skip `MCP_AUTH_SECRET`, the Worker has no authentication at all, and anyone who finds the URL can read your Moodle with your token.
+
+### Local, on your own computer
+
+The server starts on your machine whenever your MCP client starts. This only works with desktop clients such as Claude Desktop, Claude Code and Cursor, not with Claude on the web or ChatGPT.
+
+```bash
+git clone https://github.com/dussud/moodle-mcp.git
+cd moodle-mcp
+npm install && npm run build
+```
+
+Then add it to your client's config. For Claude Desktop that's `claude_desktop_config.json`, in `~/Library/Application Support/Claude/` on macOS or `%APPDATA%\Claude\` on Windows:
+
+```json
+{
+  "mcpServers": {
+    "moodle": {
+      "command": "node",
+      "args": ["/absolute/path/to/moodle-mcp/dist/server.js"],
+      "env": { "MOODLE_TOKEN": "your_token_here" }
+    }
+  }
+}
+```
+
+For Claude Code:
+
+```bash
+claude mcp add moodle -e MOODLE_TOKEN=your_token_here -- node /absolute/path/to/moodle-mcp/dist/server.js
+```
+
+### Docker, on your own server
+
+This mode includes the read-only guard. See [Self-hosting with Docker](#self-hosting-with-docker).
 
 ## Tools
 
-| Tool | Description | Params |
-|------|-------------|--------|
-| `moodle_get_site_info` | School name, Moodle version, which APIs are enabled | — |
-| `moodle_list_courses` | All your enrolled courses | — |
-| `moodle_get_course` | Course outline: sections (with `sectionId` and a text preview), activities and labels (with `moduleId`s) | `courseId` |
-| `moodle_get_section` | One section in full: its own text (timetables, calendars), every label, and activity descriptions | `courseId`, `sectionId` |
-| `moodle_list_resources` | Files and links grouped by section — returns opaque `fileId`s | `courseId` |
-| `moodle_download_file` | Read a file by its `fileId` — returns text for text files, extracted text for PDF/DOCX, images as images | `fileId` |
-| `moodle_get_page` | Read the text of a Page activity | `courseId`, `moduleId` |
-| `moodle_get_book` | Read a Book activity — table of contents plus chapter text | `courseId`, `moduleId`, `chapterId?` |
+| Tool | What it does | Parameters |
+|------|--------------|------------|
+| `moodle_get_site_info` | Site name, Moodle version and which APIs are enabled | none |
+| `moodle_list_courses` | Your enrolled courses | none |
+| `moodle_get_course` | Course outline: sections (with `sectionId` and a text preview), activities and labels (with `moduleId`) | `courseId` |
+| `moodle_get_section` | One section in full: its text (timetables, calendars), every label, and activity descriptions | `courseId`, `sectionId` |
+| `moodle_list_resources` | Files and links grouped by section, each with a `fileId` | `courseId` |
+| `moodle_download_file` | Reads a file by its `fileId`. Returns text for text files, extracted text for PDF and DOCX, and images as images | `fileId` |
+| `moodle_get_page` | Text of a Page activity | `courseId`, `moduleId` |
+| `moodle_get_book` | A Book activity: table of contents and chapter text | `courseId`, `moduleId`, `chapterId` (optional) |
 | `moodle_list_assignments` | Assignments with due dates, grouped by section | `courseId` |
 | `moodle_get_assignment` | Submission status and grade feedback | `assignmentId` |
-| `moodle_get_grades` | Full grade report with categories and feedback | `courseId` |
-| `moodle_get_calendar_events` | Upcoming events across courses | `courseId?`, `daysAhead?` |
-| `moodle_list_quizzes` | Quizzes with time limits and open dates | `courseId` |
-| `moodle_get_quiz_attempts` | Your past attempt grades and states | `quizId` |
-| `moodle_list_forums` | Forum activities in a course | `courseId` |
+| `moodle_get_grades` | Grade report with categories and feedback | `courseId` |
+| `moodle_get_calendar_events` | Upcoming events across your courses | `courseId`, `daysAhead` (both optional) |
+| `moodle_list_quizzes` | Quizzes with time limits and opening dates | `courseId` |
+| `moodle_get_quiz_attempts` | Grades and states of your past attempts | `quizId` |
+| `moodle_list_forums` | Forums in a course | `courseId` |
 | `moodle_get_forum_discussions` | Recent discussions in a forum | `forumId` |
-| `moodle_get_notifications` | Recent notifications (grades, feedback, replies) | `limit?` |
-
----
+| `moodle_get_notifications` | Recent notifications (grades, feedback, replies) | `limit` (optional) |
 
 ## Prompts
 
-Use these in any MCP client that supports prompts (Claude Desktop, VS Code with Copilot, etc.):
+These come from upstream. You can use them in clients that support MCP prompts, such as Claude Desktop or VS Code with Copilot.
 
-| Prompt | Use case | Example |
-|--------|----------|---------|
-| `summarize-course` | Full course overview organized by section | `/summarize-course courseId=42` |
-| `whats-due` | Prioritized due dates this week / next week | `/whats-due` or `/whats-due courseId=42` |
-| `build-study-notes` | Build a linked Obsidian vault from course materials | `/build-study-notes courseId=42 vaultPath=~/obsidian/finals` |
-| `exam-prep` | Topic-by-topic study guide based on grades and quiz results | `/exam-prep courseId=42` |
-| `search-notes` | Natural language search across all course files | `/search-notes courseId=42 query="derivatives and limits"` |
+| Prompt | What it does | Example |
+|--------|--------------|---------|
+| `summarize-course` | Overview of a course, section by section | `/summarize-course courseId=42` |
+| `whats-due` | What's due this week and next, most urgent first | `/whats-due` or `/whats-due courseId=42` |
+| `build-study-notes` | Builds a linked Obsidian vault from a course's materials | `/build-study-notes courseId=42 vaultPath=~/obsidian/finals` |
+| `exam-prep` | Study guide by topic, based on your grades and quiz results | `/exam-prep courseId=42` |
+| `search-notes` | Searches a course's files for an answer to a question | `/search-notes courseId=42 query="derivatives and limits"` |
 
----
+## Study notes in Obsidian
 
-## Obsidian Finals Prep
+The `build-study-notes` prompt turns a course into a folder of linked Markdown notes you can open in [Obsidian](https://obsidian.md) (free, on Windows, macOS and Linux).
 
-> Turn your entire semester into a linked knowledge graph in one command.
+1. Install Obsidian and create a vault, for example `~/obsidian/finals`.
+2. Connect this server to your assistant.
+3. Run:
+   ```
+   /build-study-notes courseId=42 vaultPath=~/obsidian/finals
+   ```
+   Or ask in plain words:
+   ```
+   Read the lecture notes and slides from my course 42 and build an Obsidian vault at
+   ~/obsidian/finals: one note per topic, [[wikilinks]] between related ideas, a MOC.md
+   index and a tag for each section.
+   ```
 
-### Setup
+The assistant reads the course sections and files, writes one note per section with the main ideas, definitions and examples, links related notes with `[[wikilinks]]`, and adds a `MOC.md` index. Writing the files needs an assistant that can write to your disk, such as Claude Code or Claude Desktop with file access.
 
-1. **Install [Obsidian](https://obsidian.md)** (free, works on Mac/Windows/Linux)
-2. Create a new vault, e.g. `~/obsidian/finals`
-3. Make sure `moodle-mcp` is connected to your MCP client
+Open the vault in Obsidian and use Graph View (Ctrl/Cmd+G) to see how the topics connect. Notes with few links are often the ones worth reviewing.
 
-### Build the vault
+<img width="1565" height="947" alt="Obsidian graph view of a course vault" src="https://github.com/user-attachments/assets/382cf5ed-4806-4d3a-bfdc-6e4eeb15c3ec" />
 
-Use the `/build-study-notes` prompt in Claude Desktop:
-
-```
-/build-study-notes courseId=42 vaultPath=~/obsidian/finals
-```
-
-Or paste this directly into Claude:
-
-```
-Pull my [Course Name] (course ID 42), read all the lecture notes and slides,
-and build a linked Obsidian vault at ~/obsidian/finals — one note per topic,
-with [[wikilinks]] between related concepts, a MOC.md index, and tags for each section.
-```
-
-Claude will:
-1. Pull all your course sections, files, assignments, and grades
-2. Read each PDF and document directly via the MCP resources protocol
-3. Write one `.md` file per section with key concepts, definitions, and examples
-4. Add `[[wikilinks]]` between related terms across notes
-5. Create a `MOC.md` (Map of Content) index linking everything
-
-### See the graph
-
-**Option A — Obsidian Graph View** (built-in, free)
-
-1. Open the vault in Obsidian
-2. Click **Graph View** (sidebar icon or `Cmd+G`)
-3. Your entire course appears as a knowledge graph — linked concepts cluster together, isolated topics stand out as things to review
-
-**Option B — Graphify** (richer visual graph)
-
-1. Install [Graphify](https://graphify.app) — it reads the same `.md` files Obsidian writes
-2. Point it at your vault folder (`~/obsidian/finals`)
-3. Drag to explore connections; click any node to open the note and ask Claude about it
-
-Both tools read the same Markdown vault — you can use both.
-
-### Knowledge Graph preview
-
-
-<img width="1565" height="947" alt="image" src="https://github.com/user-attachments/assets/382cf5ed-4806-4d3a-bfdc-6e4eeb15c3ec" />
-*Your entire course as a linked knowledge graph — built in one command. Run `/build-study-notes` once to generate this.*
-
-### Query the graph with Claude
-
-Once the vault exists on disk, you can ask Claude Code or Claude Desktop questions like:
+Once the vault exists, you can ask questions about it, for example:
 
 ```
-Explain the relationship between [[topic A]] and [[topic B]] in my course notes at ~/obsidian/finals
+Based on my notes in ~/obsidian/finals, which topics should I review before the exam?
 ```
 
-```
-Based on my notes in ~/obsidian/finals, which topics do I need to review most before the exam?
-```
+## What works on UCL Moodle
 
-Claude reads your `.md` files directly and reasons across the full linked graph.
+Some tools depend on web services that the Moodle admins choose to enable. Run `moodle_get_site_info` to see what's available.
 
-### Natural language search
+| Tools | Moodle service |
+|-------|----------------|
+| `moodle_list_courses`, `moodle_get_course`, `moodle_list_resources`, `moodle_download_file`, `moodle_get_section`, `moodle_get_page`, `moodle_get_book` | Core services, always on |
+| `moodle_list_assignments`, `moodle_get_assignment` | `mod_assign` |
+| `moodle_get_grades` | `gradereport_user` |
+| `moodle_get_calendar_events` | `core_calendar` |
+| `moodle_list_quizzes`, `moodle_get_quiz_attempts` | `mod_quiz` |
+| `moodle_get_forum_discussions` | `mod_forum` |
+| `moodle_get_notifications` | `message_popup` |
 
-Once the vault is built, you can ask Claude to find specific content:
+If a service is turned off, the tool says which one is missing instead of failing.
 
-```
-/search-notes courseId=42 query="the central limit theorem and when to use it"
-```
+## Security and file access
 
-Claude will look through all your course materials, find the relevant files, read them, and synthesize a direct answer.
+Tool responses never contain Moodle file URLs. `moodle_list_resources` returns a `fileId` for each file instead. A `fileId` is encrypted (AES-GCM) and tied to your account through your token. When you pass one to `moodle_download_file`, the server:
 
----
+1. Decrypts it and checks that it was issued to you.
+2. Asks Moodle whether you can still see the file. This catches unenrolment, hidden modules and deleted files.
+3. Refuses anything that isn't a `pluginfile.php` URL on `moodle.ucl.ac.uk`, so the server can't be used to fetch other sites.
+4. Downloads the file itself, adding your token only to that request. The token never appears in anything sent back to the assistant.
+5. Returns text for text, JSON and XML files, extracted text for PDF and DOCX (Claude won't accept those as attachments), images as images, and anything else as a base64 attachment.
 
-## Compatibility
+Because the content comes back inside the MCP response, Claude never has to fetch Moodle URLs itself. That avoids the "domain not in the list of allowed fetch" error Claude shows for Moodle-hosted PDFs.
 
-Some tools require your Moodle admin to enable specific web services. Run `moodle_get_site_info` to see which tools are available on your school's Moodle.
-
-| Tool | Required | Notes |
-|------|----------|-------|
-| `moodle_list_courses`, `moodle_get_course`, `moodle_list_resources`, `moodle_download_file`, `moodle_get_section`, `moodle_get_page`, `moodle_get_book` | Always available | Core Moodle WS |
-| `moodle_list_assignments`, `moodle_get_assignment` | Admin must enable | `mod_assign` service |
-| `moodle_get_grades` | Admin must enable | `gradereport_user` service |
-| `moodle_get_calendar_events` | Usually available | `core_calendar` service |
-| `moodle_list_quizzes`, `moodle_get_quiz_attempts` | Admin may need to enable | `mod_quiz` service |
-| `moodle_get_forum_discussions` | Admin may need to enable | `mod_forum` service |
-| `moodle_get_notifications` | Admin may need to enable | `message_popup` service |
-
-If a tool isn't available, it returns a helpful message explaining what your admin needs to enable — it won't crash the server.
-
-
----
-
-## Security & file access (v0.2)
-
-Tool responses never contain raw or authenticated Moodle file URLs. Instead, `moodle_list_resources` returns opaque `fileId`s — AES-GCM-sealed envelopes bound to your Moodle account via the access token. Pass a `fileId` to `moodle_download_file`, and the server:
-
-1. Decrypts the `fileId` and checks it was issued to you (not another user).
-2. Re-checks with Moodle that the file is still visible to you (catches unenrolment, hidden modules, removed files).
-3. Refuses anything that isn't a `pluginfile.php` URL on your Moodle host (no SSRF relay).
-4. Fetches the file server-side with the token attached to the outbound request only — the token never appears in anything returned to the MCP client.
-5. Returns text for text/JSON/XML MIMEs, extracted text for PDF and DOCX (Claude clients refuse those as embedded resources), image content for images, and an MCP embedded resource (base64) for anything else.
-
-This fixes the "domain not in the list of allowed fetch" error seen with Claude.ai's beta connectors when a chat tried to open a Moodle-hosted PDF: Claude no longer has to fetch anything cross-origin, because the content arrives inside the MCP response.
-
-**Limits:** 25 MB per file by default (override with `MOODLE_MCP_MAX_FILE_MB=<positive number>`). File IDs expire after 24 hours. Rotating your Moodle token invalidates all outstanding IDs.
-
-
+Files are limited to 25 MB by default. You can change this with `MOODLE_MCP_MAX_FILE_MB`. A `fileId` expires after 24 hours, and all of them stop working if your token changes.
 
 ## Read-only guard
 
-The tools only *read* from Moodle: they call 11 `*_get_*` web-service functions and download files from `pluginfile.php`. Nothing uploads, submits, posts or messages.
+The tools only read from Moodle. They call 12 web-service functions and download files from `pluginfile.php`. None of them upload, submit, post or send messages.
 
-The Moodle token itself is far more powerful, though: a mobile-app token can upload files, submit assignments and post in forums. So the Docker deployment adds a guard ([`docker/guard.mjs`](docker/guard.mjs)) that wraps every outbound request the server makes and, by default, only lets through:
+The token can do much more than that, though. A mobile-app token can upload files, submit assignments and post in forums. So the Docker deployment adds a guard ([`docker/guard.mjs`](docker/guard.mjs)) that checks every request the server makes to the outside world. By default it only lets these through:
 
-| Allowed | Everything else |
-|---|---|
-| `webservice/rest/server.php` calls whose `wsfunction` is on the allowlist below | **Blocked** before leaving the container, e.g. `webservice/upload.php`, `login/token.php`, `mod_assign_save_submission`, `mod_forum_add_discussion_post`, any non-Moodle host |
-| `GET`/`HEAD` on `pluginfile.php` on your Moodle host | |
+- calls to `webservice/rest/server.php` whose function is on the list below
+- `GET` and `HEAD` requests for `pluginfile.php` on `moodle.ucl.ac.uk`
 
-Allowlist: `core_webservice_get_site_info`, `core_enrol_get_users_courses`, `core_course_get_contents`, `core_calendar_get_action_events_by_timesort`, `gradereport_user_get_grade_items`, `message_popup_get_popup_notifications`, `mod_assign_get_assignments`, `mod_assign_get_submission_status`, `mod_forum_get_forum_discussions`, `mod_quiz_get_quizzes_by_courses`, `mod_quiz_get_user_attempts`.
+Everything else is blocked before it leaves the container. That includes `webservice/upload.php`, `login/token.php`, `mod_assign_save_submission`, `mod_forum_add_discussion_post` and any other site.
+
+Allowed functions: `core_webservice_get_site_info`, `core_enrol_get_users_courses`, `core_course_get_contents`, `core_calendar_get_action_events_by_timesort`, `gradereport_user_get_grade_items`, `message_popup_get_popup_notifications`, `mod_assign_get_assignments`, `mod_assign_get_submission_status`, `mod_forum_get_forum_discussions`, `mod_page_get_pages_by_courses`, `mod_quiz_get_quizzes_by_courses`, `mod_quiz_get_user_attempts`.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `MOODLE_ALLOW_WRITES` | `false` | `true` disables the guard entirely (not recommended) |
-| `MOODLE_WS_EXTRA_ALLOWED` | empty | Comma-separated extra **read-only** functions to allow, e.g. if an upstream update adds a tool that fails with `Blocked by read-only guard` |
+| `MOODLE_ALLOW_WRITES` | `false` | `true` turns the guard off completely. Not recommended. |
+| `MOODLE_WS_EXTRA_ALLOWED` | empty | Extra read-only functions to allow, comma-separated. Useful if an upstream update adds a tool that fails with `Blocked by read-only guard`. |
 
-Blocked attempts are logged as `[guard] blocked: …` (`docker compose logs | grep guard`).
+Blocked requests are logged as `[guard] blocked: ...`. To see them, run `docker compose logs | grep guard`.
 
-The guard is part of the Docker deployment only; the `npx` and Cloudflare Worker modes run without it.
-
----
+The guard only exists in the Docker deployment. The local and Cloudflare Worker modes don't have it.
 
 ## Self-hosting with Docker
 
-Runs the same Streamable HTTP handler as the Cloudflare Worker, on Node, in a container. Works on any Linux box with Docker (x86_64 or ARM, e.g. an Oracle Cloud Ampere instance).
+The container runs the same server as the Cloudflare Worker, on Node. It works on any Linux machine with Docker, x86_64 or ARM (an Oracle Cloud Ampere instance, for example).
 
-What the container adds on top of the Worker:
-- **Endpoint authentication**: every request must carry the secret key, either in the path (`/<MCP_AUTH_SECRET>/mcp`) or as `Authorization: Bearer <MCP_AUTH_SECRET>`. Anything else gets a plain `404`. The path form is what Claude.ai custom connectors need, since they cannot send custom headers.
-- **The [read-only guard](#read-only-guard)**.
-- `GET /healthz` for monitoring (no auth, returns `ok`).
+Compared with the Worker, the container adds:
+
+- the [read-only guard](#read-only-guard)
+- a required secret: every request needs it, either in the path (`/<MCP_AUTH_SECRET>/mcp`) or as `Authorization: Bearer <MCP_AUTH_SECRET>`. Anything else gets a `404`. Claude's custom connectors can't send headers, so they need the path form.
+- `GET /healthz` for monitoring (no secret needed, returns `ok`)
 
 ### 1. Configure
 
@@ -564,7 +273,7 @@ cd moodle-mcp
 cp .env.example .env
 chmod 600 .env
 sed -i "s/^MCP_AUTH_SECRET=.*/MCP_AUTH_SECRET=$(openssl rand -hex 24)/" .env
-nano .env   # set MOODLE_URL and MOODLE_TOKEN
+nano .env   # set MOODLE_TOKEN
 ```
 
 ### 2a. Run behind your own reverse proxy
@@ -574,7 +283,7 @@ docker compose up -d --build
 curl http://127.0.0.1:3000/healthz   # -> ok
 ```
 
-The container listens on `127.0.0.1:3000` only. Put a TLS reverse proxy in front of it, for example with Caddy (automatic HTTPS):
+The container only listens on `127.0.0.1:3000`. Put a reverse proxy with TLS in front of it. Caddy handles HTTPS for you:
 
 ```
 moodle-mcp.example.com {
@@ -582,11 +291,11 @@ moodle-mcp.example.com {
 }
 ```
 
-nginx works too; disable buffering so streamed responses pass straight through (`proxy_buffering off;`).
+nginx works too. Turn off buffering (`proxy_buffering off;`) so streamed responses go straight through.
 
 ### 2b. Run behind an existing Traefik
 
-If the host already runs Traefik with a Let's Encrypt resolver, set `MCP_HOST`, `TRAEFIK_NETWORK` (the Docker network Traefik is on) and `TRAEFIK_CERTRESOLVER` in `.env`, then:
+If the machine already runs Traefik with a Let's Encrypt resolver, set `MCP_HOST`, `TRAEFIK_NETWORK` (the Docker network Traefik is on) and `TRAEFIK_CERTRESOLVER` in `.env`, then run:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
@@ -594,22 +303,25 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
 
 ### 3. DNS and firewall
 
-- Point an `A` record for your host at the server's public IP. Behind Cloudflare, use **DNS only** (grey cloud), at least until the certificate is issued: Let's Encrypt's TLS-ALPN challenge does not work through the Cloudflare proxy.
-- Open ports 80/443. On Oracle Cloud this means **both** the VCN security list / NSG ingress rules and the instance firewall (`iptables` / `netfilter-persistent`).
+- Point an `A` record for your domain at the server's public IP. If the domain is on Cloudflare, set the record to DNS only (grey cloud), at least until the certificate is issued. Let's Encrypt's TLS-ALPN challenge doesn't work through Cloudflare's proxy.
+- Open ports 80 and 443. On Oracle Cloud you have to open them in two places: the VCN security list or NSG ingress rules, and the instance firewall (`iptables` / `netfilter-persistent`).
 
 ### 4. Connect
 
 Your MCP URL is:
+
 ```
 https://moodle-mcp.example.com/<MCP_AUTH_SECRET>/mcp
 ```
-Print the secret with `grep MCP_AUTH_SECRET .env`. Treat the URL like a password: if it leaks, put a new `openssl rand -hex 24` value in `.env` and run `docker compose up -d`.
 
-- **Claude.ai / Claude Desktop**: Settings → Connectors → *Add custom connector* → paste the URL.
+Print the secret with `grep MCP_AUTH_SECRET .env`. Treat the URL like a password. If it leaks, put a new `openssl rand -hex 24` value in `.env` and run `docker compose up -d`.
+
+- **Claude** (web and desktop): Settings > Connectors > Add custom connector, then paste the URL.
 - **Claude Code**: `claude mcp add moodle --transport http https://moodle-mcp.example.com/<MCP_AUTH_SECRET>/mcp`
-- **Clients that support headers** can use `https://moodle-mcp.example.com/mcp` with `Authorization: Bearer <MCP_AUTH_SECRET>`.
+- **Clients that can send headers**: use `https://moodle-mcp.example.com/mcp` with `Authorization: Bearer <MCP_AUTH_SECRET>`.
 
-Quick check from a shell:
+To test it from a shell:
+
 ```bash
 curl -s -X POST "https://moodle-mcp.example.com/$SECRET/mcp" \
   -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
@@ -623,56 +335,63 @@ git pull
 docker compose up -d --build        # add -f docker-compose.traefik.yml if you use it
 ```
 
-### Using the prebuilt image instead of building
+### Using the prebuilt image
 
-Every push to `master` builds a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/dussud/moodle-mcp:latest` (see [Publishing your fork on GitHub](#publishing-your-fork-on-github)). To use it, replace `build: .` with `image: ghcr.io/dussud/moodle-mcp:latest` in `docker-compose.yml`, then `docker compose pull && docker compose up -d`.
+Every push to `master` builds an image for `linux/amd64` and `linux/arm64` and publishes it as `ghcr.io/dussud/moodle-mcp:latest` (see [Publishing your fork on GitHub](#publishing-your-fork-on-github)). To use it, replace `build: .` with `image: ghcr.io/dussud/moodle-mcp:latest` in `docker-compose.yml`, then run `docker compose pull && docker compose up -d`.
 
 ### Troubleshooting
 
 | Symptom | Cause |
 |---|---|
-| `404` on every request | Missing/wrong secret in the URL or `Authorization` header |
-| `{"error":"Invalid Moodle token…"}` | Token wrong, expired, or you pasted `signature:::token`; see [Getting Your Token](#getting-your-token) |
-| `{"error":"fetch failed"}` | Container cannot reach `MOODLE_URL` (DNS, typo, school firewall) |
-| `Blocked by read-only guard: …` | A tool used a function that is not allowlisted; see [Read-only guard](#read-only-guard) |
-| Traefik returns `404 page not found` for a few seconds after start | Traefik waits until the container health check passes |
-| Browser shows a certificate error | DNS not pointing at the server yet, proxied through Cloudflare, or port 443 closed |
-
----
+| `404` on every request | The secret is missing or wrong, in the URL or the `Authorization` header |
+| `{"error":"Invalid Moodle token..."}` | The token is wrong or expired, or you pasted `signature:::token`. See [Getting your token](#getting-your-token) |
+| `This server only supports UCL Moodle...` | `MOODLE_URL` is set to another site. Remove it |
+| `{"error":"fetch failed"}` | The container can't reach `moodle.ucl.ac.uk` (DNS or firewall) |
+| `Blocked by read-only guard: ...` | A tool used a function that isn't on the allowed list. See [Read-only guard](#read-only-guard) |
+| Traefik returns `404 page not found` for a few seconds after starting | Traefik waits for the container's health check to pass |
+| The browser shows a certificate error | DNS doesn't point at the server yet, the record is proxied through Cloudflare, or port 443 is closed |
 
 ## Publishing your fork on GitHub
 
-To make your own copy with these changes (or your own):
+To make your own copy:
 
-1. **Fork**: on GitHub click **Fork** on this repo, or with the GitHub CLI:
+1. Fork the repo, on GitHub or with the GitHub CLI:
    ```bash
    gh repo fork dussud/moodle-mcp --clone
    cd moodle-mcp
    ```
-2. **Push changes**:
+2. Push your changes:
    ```bash
    git add -A
    git commit -m "Describe your change"
    git push origin master
    ```
-   Never commit `.env`: it holds your Moodle token. `.gitignore` already excludes it; only `.env.example` is tracked.
-3. **Docker image (GitHub Actions)**: [`.github/workflows/docker.yml`](.github/workflows/docker.yml) builds and pushes `ghcr.io/<you>/moodle-mcp` on every push to `master` and on `v*` tags. On a fork, enable it once under **Actions** → *I understand my workflows, go ahead and enable them*. New packages are private by default: either make it public (**Packages** → moodle-mcp → *Package settings* → *Change visibility*), or log in on the server with a PAT that has `read:packages`:
+   Never commit `.env`, because it holds your Moodle token. `.gitignore` already excludes it, and only `.env.example` is tracked.
+3. The Docker image is built by GitHub Actions ([`.github/workflows/docker.yml`](.github/workflows/docker.yml)), which pushes `ghcr.io/<you>/moodle-mcp` on every push to `master` and on `v*` tags. On a fork, enable it once under Actions ("I understand my workflows, go ahead and enable them"). New packages are private. Either make yours public (Packages > moodle-mcp > Package settings > Change visibility), or log in on the server with a personal access token that has `read:packages`:
    ```bash
    echo "$GHCR_PAT" | docker login ghcr.io -u <your-github-user> --password-stdin
    ```
-4. **Stay in sync with upstream**:
+4. To pull in changes from upstream:
    ```bash
    git remote add upstream https://github.com/1alexandrer/moodle-mcp.git   # once
    git fetch upstream
    git merge upstream/master
    git push origin master
    ```
-   Or use **Sync fork** on the GitHub page. After merging, check whether new tools need functions added to `MOODLE_WS_EXTRA_ALLOWED`; any that write to Moodle should stay blocked.
-
----
+   You can also click Sync fork on GitHub. After merging, check whether new tools need their functions added to `MOODLE_WS_EXTRA_ALLOWED`. Keep anything that writes to Moodle blocked.
 
 ## Contributing
 
-Issues and PRs welcome. Open an issue first for large changes. For changes to the server itself, consider contributing to [upstream](https://github.com/1alexandrer/moodle-mcp).
+Issues and pull requests are welcome. For big changes, open an issue first. If a change would help every Moodle site, consider sending it to [upstream](https://github.com/1alexandrer/moodle-mcp) instead.
 
-MIT License — © 2026 Alexandre Ribeiro
+### Publishing the npm package
+
+`npm create ucl-moodle-mcp` runs [`packages/create-ucl-moodle-mcp`](packages/create-ucl-moodle-mcp). It's a small launcher that downloads this repo's `master` branch and runs [`scripts/setup.mjs`](scripts/setup.mjs), so changes to the setup reach users as soon as they're pushed. You only need to republish when the launcher (`index.mjs`) changes:
+
+```bash
+cd packages/create-ucl-moodle-mcp
+npm version patch
+npm publish
+```
+
+MIT License. © 2026 Alexandre Ribeiro

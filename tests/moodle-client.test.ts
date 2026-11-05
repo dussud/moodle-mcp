@@ -38,37 +38,6 @@ describe("MoodleClient.create with token", () => {
   });
 });
 
-describe("MoodleClient.create with username+password", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("POSTs to /login/token.php then fetches site info", async () => {
-    mockFetch
-      .mockResolvedValueOnce(mockOkJson({ token: "fetched-token" }))
-      .mockResolvedValueOnce(mockOkJson({
-        userid: 7, username: "bob", sitename: "Uni", fullname: "Bob", release: "4.3.0",
-      }));
-
-    const client = await MoodleClient.create({
-      baseUrl: "https://moodle.uni.edu",
-      username: "bob",
-      password: "pass",
-    });
-
-    expect(client.userId).toBe(7);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    const loginCall = mockFetch.mock.calls[0];
-    expect(loginCall[0]).toContain("/login/token.php");
-  });
-
-  it("throws descriptive error on login failure", async () => {
-    mockFetch.mockResolvedValueOnce(mockOkJson({ error: "Invalid login" }));
-
-    await expect(
-      MoodleClient.create({ baseUrl: "https://moodle.uni.edu", username: "x", password: "y" })
-    ).rejects.toThrow("Invalid login");
-  });
-});
-
 describe("MoodleClient.call", () => {
   beforeEach(() => vi.clearAllMocks());
 

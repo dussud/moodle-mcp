@@ -48,44 +48,13 @@ export class MoodleClient {
   }
 
   static async create(config: Config): Promise<MoodleClient> {
-    const token =
-      config.token ??
-      (await MoodleClient.login(config.baseUrl, config.username!, config.password!));
-    const client = new MoodleClient(config.baseUrl, token, config.maxFileBytes);
+    const client = new MoodleClient(config.baseUrl, config.token, config.maxFileBytes);
     const info = await client.call<SiteInfo>("core_webservice_get_site_info");
     client.userId = info.userid;
     client.siteName = info.sitename;
     client.release = info.release ?? "";
     client.supportedFunctions = new Set(info.functions?.map((f) => f.name) ?? []);
     return client;
-  }
-
-  private static async login(baseUrl: string, username: string, password: string): Promise<string> {
-    const url = `${baseUrl}/login/token.php`;
-    const body = new URLSearchParams({ username, password, service: "moodle_mobile_app" });
-    const res = await fetch(url, { method: "POST", body });
-    const text = await res.text();
-    let data: { token?: string; error?: string };
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error(
-        "Moodle login returned an unexpected response — your school likely uses SSO (Microsoft/Google/CAS). " +
-        "Use a token instead: log in via browser, then visit " +
-        `${baseUrl}/login/token.php?service=moodle_mobile_app and set MOODLE_TOKEN.`
-      );
-    }
-    if (data.error) {
-      throw new Error(
-        `Moodle login failed: ${data.error}. Check your username, password, and Moodle URL.`
-      );
-    }
-    if (!data.token) {
-      throw new Error(
-        "Moodle login failed: no token returned. Ensure the Moodle Mobile app service is enabled."
-      );
-    }
-    return data.token;
   }
 
   async call<T>(wsfunction: string, params: Record<string, string | number | boolean> = {}): Promise<T> {

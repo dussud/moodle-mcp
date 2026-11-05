@@ -2,10 +2,17 @@
 
 ## [Unreleased]
 
+### Changed (UCL-only fork)
+- The server only supports UCL Moodle (`https://moodle.ucl.ac.uk`): `MOODLE_URL` is optional and any other site is refused
+- Authentication is token-only: `MOODLE_USERNAME` / `MOODLE_PASSWORD` login was removed (UCL uses single sign-on, so it never worked there)
+- README rewritten for UCL; `manifest.json` and `package.json` point to this fork
+
 ### Added
-- `moodle_get_section` — read one course section in full: the section's own text (timetables, calendars), every label, and activity descriptions
-- `moodle_get_page` — read the text of a Page activity (HTML converted to Markdown-ish text); embedded files get `fileId`s for `moodle_download_file`
-- `moodle_get_book` — read a Book activity: table of contents plus chapter text, whole book or a single `chapterId`
+- `npm create ucl-moodle-mcp` (`packages/create-ucl-moodle-mcp`) and `npm run setup` (`scripts/setup.mjs`): one-command setup on Windows, macOS and Linux that gets your token from your logged-in browser, deploys a personal Cloudflare Worker and prints its private MCP URL
+- Cloudflare Worker: optional `MCP_AUTH_SECRET`; when set, requests must use `/<secret>/mcp` or `Authorization: Bearer <secret>` (others get `404`)
+- `moodle_get_section`: read one course section in full, including the section's own text (timetables, calendars), every label, and activity descriptions
+- `moodle_get_page`: read the text of a Page activity (HTML converted to Markdown-ish text); embedded files get `fileId`s for `moodle_download_file`
+- `moodle_get_book`: read a Book activity (table of contents plus chapter text), the whole book or a single `chapterId`
 
 ### Changed
 - `moodle_get_course` now shows each module's `moduleId`, each section's `sectionId` with a preview of its text, and label previews instead of truncated names; sections that contain only text are no longer hidden
@@ -19,24 +26,24 @@
 - `moodle_get_calendar_events` filtered on a field action events don't have, so a `courseId` filter always returned nothing
 - `moodle_list_assignments` failed outright when Moodle's `mod_assign_get_assignments` errored for a course ("Invalid response value detected"); it now falls back to due dates from the course contents
 
-## [0.1.0] — 2026-04-15
+## [0.1.0] - 2026-04-15
 
 ### Added
 
 **Tools (13 total)**
-- `moodle_get_site_info` — school name, Moodle version, enabled API status
-- `moodle_list_courses` — all enrolled courses
-- `moodle_get_course` — sections and activities
-- `moodle_list_resources` — files and links grouped by course section
-- `moodle_list_assignments` — assignments with due dates, grouped by section
-- `moodle_get_assignment` — submission status and grade feedback
-- `moodle_get_grades` — full grade report with category grouping
-- `moodle_get_calendar_events` — upcoming events with optional course filter
-- `moodle_list_quizzes` — quizzes with time limits and open/close dates
-- `moodle_get_quiz_attempts` — past attempt history and grades
-- `moodle_list_forums` — forum activities grouped by section
-- `moodle_get_forum_discussions` — recent discussions with reply counts
-- `moodle_get_notifications` — recent notifications with unread indicator
+- `moodle_get_site_info`: school name, Moodle version, enabled API status
+- `moodle_list_courses`: all enrolled courses
+- `moodle_get_course`: sections and activities
+- `moodle_list_resources`: files and links grouped by course section
+- `moodle_list_assignments`: assignments with due dates, grouped by section
+- `moodle_get_assignment`: submission status and grade feedback
+- `moodle_get_grades`: full grade report with category grouping
+- `moodle_get_calendar_events`: upcoming events with optional course filter
+- `moodle_list_quizzes`: quizzes with time limits and open/close dates
+- `moodle_get_quiz_attempts`: past attempt history and grades
+- `moodle_list_forums`: forum activities grouped by section
+- `moodle_get_forum_discussions`: recent discussions with reply counts
+- `moodle_get_notifications`: recent notifications with unread indicator
 
 **MCP Resources**
 - Course files exposed as MCP resources at `moodle://courses/{courseId}/files/{encodedUrl}`
@@ -44,11 +51,11 @@
 - Enables AI-powered document synthesis
 
 **MCP Prompts**
-- `summarize-course` — structured course summary
-- `whats-due` — prioritized upcoming deadlines
-- `build-study-notes` — builds a linked Obsidian vault from course materials
-- `exam-prep` — study guide based on grades and quiz results
-- `search-notes` — natural language search across course files
+- `summarize-course`: structured course summary
+- `whats-due`: prioritized upcoming deadlines
+- `build-study-notes`: builds a linked Obsidian vault from course materials
+- `exam-prep`: study guide based on grades and quiz results
+- `search-notes`: natural language search across course files
 
 **Infrastructure**
 - Token auth + username/password auth

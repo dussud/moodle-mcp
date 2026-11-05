@@ -1,0 +1,34 @@
+{
+  "name": "create-ucl-moodle-mcp",
+  "version": "0.1.0",
+  "description": "One command to connect Claude or ChatGPT to your UCL Moodle: gets your token from your browser and deploys your own private MCP server on Cloudflare.",
+  "type": "module",
+  "bin": {
+    "create-ucl-moodle-mcp": "index.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ucl",
+    "moodle",
+    "mcp",
+    "claude",
+    "chatgpt",
+    "cloudflare-workers"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dussud/moodle-mcp.git",
+    "directory": "packages/create-ucl-moodle-mcp"
+  },
+  "homepage": "https://github.com/dussud/moodle-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/dussud/moodle-mcp/issues"
+  }
+}

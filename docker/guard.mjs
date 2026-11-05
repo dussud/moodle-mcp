@@ -27,11 +27,8 @@ if (allowWrites) {
   for (const fn of (process.env.MOODLE_WS_EXTRA_ALLOWED ?? "").split(",")) {
     if (fn.trim()) READ_ONLY_FUNCTIONS.add(fn.trim());
   }
-  if (!process.env.MOODLE_URL) {
-    console.error("MOODLE_URL must be set");
-    process.exit(1);
-  }
-  const moodleHost = new URL(process.env.MOODLE_URL).host;
+  // This fork is UCL-only: MOODLE_URL is optional and src/config.ts refuses any other site.
+  const moodleHost = new URL(process.env.MOODLE_URL || "https://moodle.ucl.ac.uk").host;
   const realFetch = globalThis.fetch;
 
   const refuse = (why) => {

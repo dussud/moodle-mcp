@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { normalizeUrl, getConfig } from "../src/config.js";
+import { normalizeUrl, getConfig, resolveMoodleUrl, UCL_MOODLE_URL } from "../src/config.js";
 
 describe("normalizeUrl", () => {
   it("returns the origin of a base URL", () => {
@@ -34,43 +34,41 @@ describe("getConfig", () => {
     process.env = origEnv;
   });
 
-  it("throws when MOODLE_URL is missing", () => {
+  it("defaults to UCL Moodle when MOODLE_URL is not set", () => {
     delete process.env.MOODLE_URL;
-    expect(() => getConfig()).toThrow("MOODLE_URL");
-  });
-
-  it("accepts token-only auth", () => {
-    process.env.MOODLE_URL = "https://moodle.uni.edu";
     process.env.MOODLE_TOKEN = "abc123";
-    delete process.env.MOODLE_USERNAME;
-    delete process.env.MOODLE_PASSWORD;
     const config = getConfig();
-    expect(config.baseUrl).toBe("https://moodle.uni.edu");
+    expect(config.baseUrl).toBe(UCL_MOODLE_URL);
     expect(config.token).toBe("abc123");
   });
 
-  it("accepts username+password auth", () => {
-    process.env.MOODLE_URL = "https://moodle.uni.edu";
-    delete process.env.MOODLE_TOKEN;
-    process.env.MOODLE_USERNAME = "student@uni.edu";
-    process.env.MOODLE_PASSWORD = "secret";
-    const config = getConfig();
-    expect(config.username).toBe("student@uni.edu");
-    expect(config.password).toBe("secret");
+  it("accepts the UCL URL, even with a path", () => {
+    process.env.MOODLE_URL = "https://moodle.ucl.ac.uk/course/view.php?id=5";
+    process.env.MOODLE_TOKEN = "abc123";
+    expect(getConfig().baseUrl).toBe("https://moodle.ucl.ac.uk");
   });
 
-  it("throws when neither token nor credentials provided", () => {
+  it("refuses any other Moodle site", () => {
     process.env.MOODLE_URL = "https://moodle.uni.edu";
+    process.env.MOODLE_TOKEN = "abc123";
+    expect(() => getConfig()).toThrow("only supports UCL Moodle");
+  });
+
+  it("throws when MOODLE_TOKEN is missing", () => {
+    delete process.env.MOODLE_URL;
     delete process.env.MOODLE_TOKEN;
-    delete process.env.MOODLE_USERNAME;
-    delete process.env.MOODLE_PASSWORD;
     expect(() => getConfig()).toThrow("MOODLE_TOKEN");
   });
+});
 
-  it("normalizes a full course URL", () => {
-    process.env.MOODLE_URL = "https://moodle.uni.edu/course/view.php?id=5";
-    process.env.MOODLE_TOKEN = "abc123";
-    const config = getConfig();
-    expect(config.baseUrl).toBe("https://moodle.uni.edu");
+describe("resolveMoodleUrl", () => {
+  it("defaults to UCL for undefined or empty values", () => {
+    expect(resolveMoodleUrl(undefined)).toBe(UCL_MOODLE_URL);
+    expect(resolveMoodleUrl("  ")).toBe(UCL_MOODLE_URL);
+  });
+
+  it("refuses plain http and other hosts", () => {
+    expect(() => resolveMoodleUrl("http://moodle.ucl.ac.uk")).toThrow("only supports UCL Moodle");
+    expect(() => resolveMoodleUrl("https://moodle.ucl.ac.uk.evil.com")).toThrow("only supports UCL Moodle");
   });
 });
