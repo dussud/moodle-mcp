@@ -157,6 +157,7 @@ export function tokenFromPaste(raw) {
 
 const HELPER_NAME = "UCL Moodle MCP";
 const HELPER_WAIT_SECONDS = 180;
+const SUBDOMAIN_WAIT_SECONDS = 120;
 
 function launchLink(base) {
   const passport = randomInt(100000, 999999999);
@@ -519,11 +520,20 @@ async function main() {
   info("Deploying...");
   let deploy = await run("npx", ["wrangler", "deploy"], { capture: true });
   // A brand-new Cloudflare account has no workers.dev subdomain yet. Cloudflare creates one during
-  // that first deploy, but the deploy itself still fails; a second attempt goes through.
+  // that first deploy, but the deploy itself still fails, and how long the subdomain takes to become
+  // usable varies a lot between accounts. Cloudflare offers no "ready" callback, so poll: redeploy
+  // (idempotent) every 10 seconds until it goes through or we give up.
   if (deploy.code !== 0 && /subdomain/i.test(deploy.out)) {
-    info("Cloudflare is setting up your workers.dev address (first deploy only). Retrying in 10 seconds...");
-    await new Promise((r) => setTimeout(r, 10_000));
-    deploy = await run("npx", ["wrangler", "deploy"], { capture: true });
+    info(`Cloudflare is setting up your workers.dev address (first deploy only). This can take up to ${Math.round(SUBDOMAIN_WAIT_SECONDS / 60)} minutes.`);
+    const deadline = Date.now() + SUBDOMAIN_WAIT_SECONDS * 1000;
+    for (let retry = 1; Date.now() < deadline; retry++) {
+      await new Promise((r) => setTimeout(r, 10_000));
+      process.stdout.write(`\r  Waiting for the Cloudflare route to be deployed (retry ${retry})...`);
+      deploy = await run("npx", ["wrangler", "deploy"], { capture: true, echo: false });
+      if (deploy.code === 0 || !/subdomain/i.test(deploy.out)) break; // ready, or a different error
+    }
+    process.stdout.write("\n");
+    if (deploy.code !== 0) process.stderr.write(deploy.out); // show the last attempt's error
   }
   if (deploy.code !== 0) {
     fail("wrangler deploy failed (see above). If it mentions a workers.dev subdomain, open " +
