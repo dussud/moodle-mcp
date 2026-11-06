@@ -486,11 +486,7 @@ async function main() {
 
   If you don't have an account yet, create one now: ${cyan(CF_SIGNUP)}
   Signing up first avoids login problems later, when the setup connects to Cloudflare.`);
-  const cfReady = (await ask("Press Enter once you have an account, or type O to open the sign-up page:")).toUpperCase();
-  if (cfReady === "O") {
-    try { openUrl(CF_SIGNUP); } catch { warn(`Couldn't open the browser. Go to ${CF_SIGNUP}`); }
-    await ask("Press Enter once your account is created (check your email to verify it).");
-  }
+  await ask("Press Enter once you have an account.");
 
   // 1. credentials
   step(1, "Getting your UCL Moodle token");
