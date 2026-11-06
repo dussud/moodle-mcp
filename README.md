@@ -20,8 +20,10 @@ If you're at another university, use [upstream](https://github.com/1alexandrer/m
 You need:
 
 - [Node.js 18 or newer](https://nodejs.org) (the LTS version is fine)
-- a free [Cloudflare account](https://dash.cloudflare.com/sign-up/workers-and-pages)
-- to be logged in to [UCL Moodle](https://moodle.ucl.ac.uk) in your default browser
+- a free [Cloudflare account](https://dash.cloudflare.com/sign-up/workers-and-pages). Create it before you start: it avoids login problems when the setup connects to Cloudflare.
+- a desktop browser with developer tools: Chrome, Edge, Firefox, Brave or similar
+
+Your server runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/), Cloudflare's hosting for small programs. It runs on Cloudflare's servers, so Claude or ChatGPT can reach it any time, even when your computer is off, and you don't host anything yourself. The free plan allows 100,000 requests a day; you're the only user, and a busy day is a few hundred requests, so you stay well within it.
 
 Then run this in a terminal (PowerShell on Windows, Terminal on macOS):
 
@@ -31,8 +33,10 @@ npm create ucl-moodle-mcp
 
 The setup does three things:
 
-1. It opens a Moodle login link in your default browser and catches your token. This is the same link the official Moodle app uses (see [Getting your token](#getting-your-token)). Your browser may ask whether to open a `moodlemobile` link. Click Open or Allow. If you're not logged in to Moodle, it stops and asks you to log in first.
-2. It asks you to log in to Cloudflare (the first time only), deploys your own Cloudflare Worker and stores your token there as an encrypted secret.
+1. It gets your Moodle token, the one UCL Moodle gives the official Moodle app (see [Getting your token](#getting-your-token)). It offers two ways, and explains each before it starts:
+   - **Automatic** (the default): a small temporary helper catches the token. Your browser opens UCL Moodle (log in if asked), then asks whether to open "UCL Moodle MCP". Click Open.
+   - **Manual**: you open a link with your browser's developer tools showing, copy the `moodlemobile://token=...` link Moodle redirects to, and paste it into the terminal. The pasted link stays hidden on screen because it gives access to your account.
+2. It uses Wrangler, Cloudflare's command-line tool, which asks you to log in to Cloudflare and allow it access to your account (the first time only). Then it deploys your own Cloudflare Worker and stores your token there as an encrypted secret.
 3. It prints your MCP URL, which looks like `https://moodle-mcp.<you>.workers.dev/<secret>/mcp`.
 
 **Don't share that URL.** It's tied to your Moodle account, and anyone who has it can read your courses, files, grades and messages as you. If it leaks, run `npm create ucl-moodle-mcp` again. You'll get a new URL and the old one stops working.
@@ -56,22 +60,40 @@ Add your MCP URL to your assistant:
 
 ## Getting your token
 
-UCL Moodle logs you in through UCL's single sign-on, so the only way to get a token is the one the official Moodle app uses: the mobile-app launch link. `npm create ucl-moodle-mcp` does this for you. Here are the manual steps in case you need them.
+UCL Moodle logs you in through UCL's single sign-on, so the only way to get a token is the one the official Moodle app uses: a launch link that, once you're logged in, redirects your browser to `moodlemobile://token=...`. That's the link that normally opens the Moodle app, and it carries the token. The setup has two ways to catch it.
 
-1. In a desktop browser (Chrome, Edge or Firefox), log in to [UCL Moodle](https://moodle.ucl.ac.uk).
-2. Open DevTools (F12) and go to the Console tab. Keep it open.
+### Automatic, with a temporary helper (the default)
+
+The setup registers a small helper called "UCL Moodle MCP" for `moodlemobile://` links. All it does is write the link it receives to a file the setup reads. Then the setup opens the launch link in your default browser. Once you're logged in, Moodle redirects to the `moodlemobile://` link, the browser asks whether to open "UCL Moodle MCP", and when you click Open the helper hands the link over. The setup then removes the helper. If it doesn't get the link within 3 minutes, you can try again or switch to the manual way.
+
+What the helper is depends on your system. All of it comes from the code in [`scripts/setup.mjs`](scripts/setup.mjs), and nothing is downloaded:
+
+- **macOS**: a tiny app built on your Mac by Apple's own AppleScript compiler (`osacompile`) in `~/Library/Application Support/ucl-moodle-mcp`. macOS doesn't block it even though it isn't signed by a known developer, because Gatekeeper only checks apps downloaded from the internet.
+- **Windows**: a two-line PowerShell script, registered for your Windows account only (under `HKEY_CURRENT_USER`, no admin rights). If the Moodle desktop app was registered for these links, that setting is saved first and put back afterwards.
+- **Linux**: a hidden launcher (a `.desktop` file in `~/.local/share/applications`) that runs a two-line shell script. It needs `xdg-utils` and a desktop session; without `xdg-utils` the setup goes straight to the manual way. Chrome and Edge name the system tool in their prompt ("Open xdg-open?") instead of "UCL Moodle MCP".
+
+If you stop the setup while it waits (Ctrl+C or closing the terminal), it removes the helper before exiting.
+
+### Manual, from the developer tools (any browser, any OS)
+
+The browser can't open the `moodlemobile://` link without the app, but its developer tools show it. `npm create ucl-moodle-mcp` guides you through these steps and decodes the link for you:
+
+1. In a desktop browser (Chrome, Edge, Firefox, Brave...), log in to [UCL Moodle](https://moodle.ucl.ac.uk).
+2. Open a new tab, open the developer tools (F12, or Cmd+Option+I on a Mac) and go to the Network tab. Tick "Preserve log" if you see it.
 3. In the same tab, go to:
    ```
    https://moodle.ucl.ac.uk/admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=12345&urlscheme=moodlemobile
    ```
-   The page seems to do nothing, because Moodle is trying to hand you over to the app.
-4. The Console shows an error with a URL like `moodlemobile://token=BASE64STRING`. Copy everything after `token=`.
-   If nothing shows up, look in the Network tab for the `launch.php` request and copy its `Location` response header.
-5. Decode it in the Console:
-   ```js
-   atob("BASE64STRING")
-   ```
-   You get `signature:::TOKEN` or `signature:::TOKEN:::privatetoken`. Use only the middle part, the 32-character `TOKEN`. Pasting the whole string gives `invalidtoken`.
+   The page seems to do nothing, because Moodle is trying to hand you over to the app. If the browser offers to open the Moodle app, click Cancel.
+4. Click the `launch.php` request, and under Headers > Response Headers copy the `location` value. It starts with `moodlemobile://token=`. In Chrome and Edge, the same link also appears in a red error in the Console tab.
+
+If you're doing it fully by hand (without the setup), decode the part after `token=` in the Console:
+
+```js
+atob("BASE64STRING")
+```
+
+You get `signature:::TOKEN` or `signature:::TOKEN:::privatetoken`. Use only the middle part, the 32-character `TOKEN`. Pasting the whole string gives `invalidtoken`.
 
 To check a token:
 

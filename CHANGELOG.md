@@ -8,7 +8,7 @@
 - README rewritten for UCL; `manifest.json` and `package.json` point to this fork
 
 ### Added
-- `npm create ucl-moodle-mcp` (`packages/create-ucl-moodle-mcp`) and `npm run setup` (`scripts/setup.mjs`): one-command setup on Windows, macOS and Linux that gets your token from your logged-in browser, deploys a personal Cloudflare Worker and prints its private MCP URL
+- `npm create ucl-moodle-mcp` (`packages/create-ucl-moodle-mcp`) and `npm run setup` (`scripts/setup.mjs`): one-command setup on Windows, macOS and Linux that gets your token (with a temporary helper registered for `moodlemobile://` links, or copied by hand from the browser's developer tools), deploys a personal Cloudflare Worker and prints its private MCP URL
 - Cloudflare Worker: optional `MCP_AUTH_SECRET`; when set, requests must use `/<secret>/mcp` or `Authorization: Bearer <secret>` (others get `404`)
 - `moodle_get_section`: read one course section in full, including the section's own text (timetables, calendars), every label, and activity descriptions
 - `moodle_get_page`: read the text of a Page activity (HTML converted to Markdown-ish text); embedded files get `fileId`s for `moodle_download_file`
